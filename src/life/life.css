@@ -1,0 +1,103 @@
+.life-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0f0f1a;
+  color: #eee;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.life-controls {
+  padding: 12px 16px;
+  background: #1a1a2e;
+  border-bottom: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.control-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.control-row input {
+  background: #252542;
+  border: 1px solid #333;
+  color: #eee;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  width: 70px;
+}
+
+.control-row input:focus {
+  outline: none;
+  border-color: #e94560;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #e94560;
+}
+
+.control-row button {
+  background: #e94560;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.control-row button:hover {
+  background: #ff6b8a;
+}
+
+.back-link {
+  color: #aaa;
+  text-decoration: none;
+  font-size: 13px;
+  margin-left: auto;
+}
+
+.back-link:hover {
+  color: #e94560;
+}
+
+.info {
+  font-size: 12px;
+  color: #888;
+  font-family: monospace;
+}
+
+.life-canvas {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.life-canvas canvas {
+  display: block;
+}
