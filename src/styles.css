@@ -170,6 +170,19 @@ canvas:active {
   flex: 1;
 }
 
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.nav-current {
+  color: var(--accent);
+  padding: 8px 12px;
+  font-weight: 500;
+}
+
 .nav-link {
   color: var(--text-secondary);
   text-decoration: none;

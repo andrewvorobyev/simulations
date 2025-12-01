@@ -131,7 +131,7 @@ export class Renderer3D {
     this.controls.update()
   }
 
-  updateVolume(volume: Grid[], currentZ: number): void {
+  updateVolume(volume: Grid[]): void {
     // Remove old cubes
     if (this.cubes) {
       this.scene.remove(this.cubes)
@@ -173,9 +173,9 @@ export class Renderer3D {
 
     for (let z = 0; z < volume.length; z++) {
       const grid = volume[z]!
-      // Calculate age (distance from current Z, wrapping)
-      const age = (z - currentZ + volume.length) % volume.length
-      const ageFactor = 1 - age / volume.length
+      // z=0 is current (newest), higher z is older
+      // ageFactor: 1.0 for z=0, decreases toward 0 for older layers
+      const ageFactor = 1 - z / volume.length
 
       for (let y = 0; y < grid.length; y++) {
         for (let x = 0; x < grid[y]!.length; x++) {

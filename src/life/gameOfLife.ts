@@ -56,7 +56,7 @@ export class GameOfLife {
   private height: number
   private depth: number
   private volume: Grid[]
-  private currentZ: number = 0
+  private generation: number = 0
   private spawnChance: number = 0
 
   constructor(width: number, height: number, depth: number, fillRatio = 0.3) {
@@ -65,6 +65,7 @@ export class GameOfLife {
     this.depth = depth
 
     // Initialize volume with empty grids
+    // z=0 is current state, z=1 is previous, z=2 is older, etc.
     this.volume = Array.from({ length: depth }, () => createEmptyGrid(width, height))
 
     // Start with random initial state at z=0
@@ -80,20 +81,26 @@ export class GameOfLife {
   }
 
   tick(): void {
-    const prevZ = this.currentZ
-    this.currentZ = (this.currentZ + 1) % this.depth
+    this.generation++
 
-    // Compute next generation based on previous
-    const prevGrid = this.volume[prevZ]!
-    this.volume[this.currentZ] = step(prevGrid, this.spawnChance)
+    // Compute next state from current (z=0)
+    const nextGrid = step(this.volume[0]!, this.spawnChance)
+
+    // Shift all layers back in time (oldest falls off)
+    for (let z = this.depth - 1; z > 0; z--) {
+      this.volume[z] = this.volume[z - 1]!
+    }
+
+    // Place new state at z=0
+    this.volume[0] = nextGrid
   }
 
   getVolume(): Grid[] {
     return this.volume
   }
 
-  getCurrentZ(): number {
-    return this.currentZ
+  getGeneration(): number {
+    return this.generation
   }
 
   getDimensions(): { width: number; height: number; depth: number } {
@@ -101,7 +108,7 @@ export class GameOfLife {
   }
 
   reset(fillRatio = 0.3): void {
-    this.currentZ = 0
+    this.generation = 0
     this.volume = Array.from({ length: this.depth }, () => createEmptyGrid(this.width, this.height))
     this.volume[0] = createGrid(this.width, this.height, fillRatio)
   }

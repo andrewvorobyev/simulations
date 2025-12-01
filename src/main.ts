@@ -4,22 +4,6 @@ import { runSimulation } from './engine'
 import { simulations, getSimulation } from './simulations'
 import type { Simulation } from './types'
 
-// Simple router
-function getRoute(): string {
-  return window.location.pathname
-}
-
-// Check route and load appropriate page
-if (getRoute() === '/life') {
-  import('./life/life').then(({ initLife }) => initLife())
-} else {
-  initAutomata()
-}
-
-function initAutomata(): void {
-  new App()
-}
-
 class App {
   private renderer: Renderer | null = null
   private currentSimulation: Simulation | null = null
@@ -54,7 +38,11 @@ class App {
         <button id="run-btn">Run</button>
         <div class="spacer"></div>
         <button id="center-btn" class="secondary">Center View</button>
-        <a href="/life" class="nav-link">3D Life →</a>
+        <div class="nav-links">
+          <span class="nav-current">1D Automata</span>
+          <a href="/life" class="nav-link">3D Life</a>
+          <a href="/solar" class="nav-link">Solar System</a>
+        </div>
       </div>
       <div class="canvas-container">
         <canvas id="canvas"></canvas>
@@ -174,4 +162,17 @@ class App {
   }
 }
 
-new App()
+// Simple router
+function getRoute(): string {
+  return window.location.pathname
+}
+
+// Check route and load appropriate page
+const route = getRoute()
+if (route === '/life') {
+  import('./life/life').then(({ initLife }) => initLife())
+} else if (route === '/solar') {
+  import('./solar/solar').then(({ initSolar }) => initSolar())
+} else {
+  new App()
+}
