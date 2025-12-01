@@ -60,8 +60,9 @@ class SolarApp {
         <div class="solar-controls">
           <div class="control-row">
             <label>
-              Speed: <input type="range" id="input-speed" min="0" max="200" value="${this.settings.speedFactor}" />
-              <span id="speed-display">${this.settings.speedFactor} days/sec</span>
+              Speed: <input type="range" id="input-speed" min="0.1" max="200" step="0.1" value="${this.settings.speedFactor}" />
+              <input type="number" id="input-speed-value" min="0.1" max="200" step="0.1" value="${this.settings.speedFactor}" style="width: 60px" />
+              <span id="speed-display">days/sec</span>
             </label>
             <label class="checkbox-label">
               <input type="checkbox" id="input-orbits" ${this.settings.showOrbits ? 'checked' : ''} /> Orbits
@@ -121,16 +122,29 @@ class SolarApp {
   }
 
   private setupEventListeners(): void {
-    const speedInput = document.getElementById('input-speed') as HTMLInputElement
+    const speedSlider = document.getElementById('input-speed') as HTMLInputElement
+    const speedNumber = document.getElementById('input-speed-value') as HTMLInputElement
     const speedDisplay = document.getElementById('speed-display')!
     const selectFocus = document.getElementById('select-focus') as HTMLSelectElement
     const inputFollow = document.getElementById('input-follow') as HTMLInputElement
 
-    speedInput.addEventListener('input', () => {
-      this.settings.speedFactor = parseFloat(speedInput.value)
+    const updateSpeed = (value: number) => {
+      this.settings.speedFactor = value
       this.renderer?.setSpeedFactor(this.settings.speedFactor)
-      speedDisplay.textContent = `${this.settings.speedFactor.toFixed(0)} days/sec`
+      speedDisplay.textContent = `${this.settings.speedFactor.toFixed(1)} days/sec`
       saveSettings(this.settings)
+    }
+
+    speedSlider.addEventListener('input', () => {
+      const value = parseFloat(speedSlider.value)
+      speedNumber.value = value.toString()
+      updateSpeed(value)
+    })
+
+    speedNumber.addEventListener('input', () => {
+      const value = Math.max(0.1, Math.min(200, parseFloat(speedNumber.value) || 0.1))
+      speedSlider.value = value.toString()
+      updateSpeed(value)
     })
 
     document.getElementById('input-orbits')!.addEventListener('change', (e) => {

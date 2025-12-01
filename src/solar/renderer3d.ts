@@ -8,32 +8,42 @@ import {
   getOrbitalPosition,
   getRotationAngle,
 } from './solarSystem'
+import {
+  createParticlePlanet,
+  createParticleSun,
+  createParticleMoon,
+  createRingParticles,
+  updateSunCorona,
+  updateRingParticles,
+  type RingParticleData,
+} from './planetRenderer'
 
-interface RingParticle {
-  baseAngle: number
-  radius: number
-  yOffset: number
-  size: number
-  rotationSpeed: number
-}
+const RING_PARTICLE_COUNT = 8000
 
-interface PlanetMesh {
+interface PlanetData {
   body: CelestialBody
-  mesh: THREE.Mesh
+  particles: THREE.Points
   orbitLine?: THREE.Line
   axisLine?: THREE.Line
-  moons: MoonMesh[]
-  rings?: THREE.InstancedMesh
-  ringParticles?: RingParticle[]
+  moons: MoonData[]
+  ringData?: RingParticleData
+  moonOrbitScale: (semiMajorAxis: number) => number // converts moon km to display units
+  moonPeriodScale: number // factor to scale all moon periods (preserves relative speeds)
 }
 
-interface MoonMesh {
+interface MoonData {
   body: CelestialBody
-  mesh: THREE.Mesh
+  particles: THREE.Points
   orbitLine?: THREE.Line
 }
 
-const RING_CUBES_COUNT = 5000
+interface SunData {
+  core: THREE.Points
+  corona: THREE.Points
+  corePositions: Float32Array
+  coronaPositions: Float32Array
+  coronaVelocities: Float32Array
+}
 
 export class SolarRenderer {
   private scene: THREE.Scene
@@ -41,9 +51,10 @@ export class SolarRenderer {
   private renderer: THREE.WebGLRenderer
   private controls: OrbitControls
 
-  private sunMesh: THREE.Mesh | null = null
+  private sunData: SunData | null = null
   private sunLight: THREE.PointLight | null = null
-  private planets: PlanetMesh[] = []
+  private sunRadius = 0
+  private planets: PlanetData[] = []
 
   private time = 0 // simulation time in days
   private speedFactor = 1 // days per second
@@ -64,7 +75,7 @@ export class SolarRenderer {
 
     // Scene setup
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color(0x000011)
+    this.scene.background = new THREE.Color(0x000008)
 
     // Add starfield
     this.createStarfield()
@@ -90,12 +101,12 @@ export class SolarRenderer {
     this.controls.dampingFactor = 0.05
     this.controls.minDistance = 1
     this.controls.maxDistance = 5000
-    this.controls.zoomSpeed = 3.0 // Much faster zoom
+    this.controls.zoomSpeed = 3.0
     this.controls.rotateSpeed = 1.0
     this.controls.panSpeed = 2.0
 
-    // Ambient light (very dim)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.05)
+    // Ambient light (dim for particle visibility)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.1)
     this.scene.add(ambientLight)
 
     // Handle resize
@@ -110,24 +121,37 @@ export class SolarRenderer {
 
   private createStarfield(): void {
     const geometry = new THREE.BufferGeometry()
-    const vertices: number[] = []
+    const positions: number[] = []
+    const colors: number[] = []
 
-    for (let i = 0; i < 10000; i++) {
+    for (let i = 0; i < 15000; i++) {
       const r = 3000 + Math.random() * 2000
       const theta = Math.random() * Math.PI * 2
       const phi = Math.acos(2 * Math.random() - 1)
 
-      vertices.push(
+      positions.push(
         r * Math.sin(phi) * Math.cos(theta),
         r * Math.sin(phi) * Math.sin(theta),
         r * Math.cos(phi)
       )
+
+      // Vary star colors slightly
+      const colorT = Math.random()
+      if (colorT < 0.7) {
+        colors.push(1, 1, 1) // White
+      } else if (colorT < 0.85) {
+        colors.push(1, 0.9, 0.8) // Warm
+      } else {
+        colors.push(0.8, 0.9, 1) // Cool
+      }
     }
 
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+
     const material = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 1,
+      size: 1.5,
+      vertexColors: true,
       sizeAttenuation: false,
     })
 
@@ -136,14 +160,14 @@ export class SolarRenderer {
   }
 
   private createSolarSystem(): void {
-    // Create Sun
-    const sunRadius = SUN.radius * SCALE.SUN_SCALE
-    const sunGeometry = new THREE.SphereGeometry(sunRadius, 32, 32)
-    const sunMaterial = new THREE.MeshBasicMaterial({
-      color: SUN.color,
-    })
-    this.sunMesh = new THREE.Mesh(sunGeometry, sunMaterial)
-    this.scene.add(this.sunMesh)
+    // Create particle Sun
+    this.sunRadius = SUN.radius * SCALE.SUN_SCALE
+    this.sunData = createParticleSun(this.sunRadius)
+    // Set rotation order for consistency with planets
+    this.sunData.core.rotation.order = 'YXZ'
+    this.sunData.core.rotation.z = (SUN.axialTilt * Math.PI) / 180
+    this.scene.add(this.sunData.core)
+    this.scene.add(this.sunData.corona)
 
     // Sun light
     this.sunLight = new THREE.PointLight(0xffffff, 2, 0, 0.1)
@@ -151,11 +175,11 @@ export class SolarRenderer {
     this.scene.add(this.sunLight)
 
     // Sun axis line
-    this.sunAxisLine = this.createAxisLine(SUN, sunRadius)
+    this.sunAxisLine = this.createAxisLine(SUN, this.sunRadius)
     this.scene.add(this.sunAxisLine)
 
     // Create label for Sun
-    this.createLabel('Sun', new THREE.Vector3(0, sunRadius + 2, 0))
+    this.createLabel('Sun', new THREE.Vector3(0, this.sunRadius + 2, 0))
 
     // Create planets
     for (const planetData of PLANETS) {
@@ -164,82 +188,153 @@ export class SolarRenderer {
   }
 
   private createPlanet(body: CelestialBody): void {
-    const radius = body.radius * SCALE.PLANET_SCALE
-    const geometry = new THREE.SphereGeometry(Math.max(radius, 0.5), 32, 32)
-    const material = new THREE.MeshPhongMaterial({
-      color: body.color,
-      shininess: 10,
-    })
+    const radius = Math.max(body.radius * SCALE.PLANET_SCALE, 0.5)
+    const planetParticles = createParticlePlanet(body, radius)
 
-    const mesh = new THREE.Mesh(geometry, material)
+    // Set rotation order so tilt (Z) is applied first, then spin (Y)
+    // 'ZXY' order: first Z (tilt), then X (0), then Y (spin)
+    // This makes bands perpendicular to the tilted rotation axis
+    planetParticles.mesh.rotation.order = 'ZXY'
+    planetParticles.mesh.rotation.z = (body.axialTilt * Math.PI) / 180
 
-    // Apply axial tilt
-    mesh.rotation.z = (body.axialTilt * Math.PI) / 180
-
-    this.scene.add(mesh)
+    this.scene.add(planetParticles.mesh)
 
     // Create orbit line
     const orbitLine = this.createOrbitLine(body, SCALE.AU_TO_UNITS)
     this.scene.add(orbitLine)
 
     // Create axis line
-    const axisLine = this.createAxisLine(body, Math.max(radius, 0.5))
+    const axisLine = this.createAxisLine(body, radius)
     this.scene.add(axisLine)
 
     // Create rings if planet has them
-    let rings: THREE.InstancedMesh | undefined
-    let ringParticles: RingParticle[] | undefined
+    let ringData: RingParticleData | undefined
+
     if (body.hasRings) {
-      const result = this.createRings(body, radius)
-      rings = result.mesh
-      ringParticles = result.particles
-      this.scene.add(rings)
+      const innerRadius = radius * (body.ringInnerRadius || 1.5)
+      const outerRadius = radius * (body.ringOuterRadius || 2.5)
+      ringData = createRingParticles(
+        radius,
+        innerRadius,
+        outerRadius,
+        body.ringColor || 0xc9b896,
+        RING_PARTICLE_COUNT
+      )
+      this.scene.add(ringData.mesh)
     }
 
-    // Create moons
-    const moons: MoonMesh[] = []
+    // Calculate moon orbit scale function for this planet
+    // Maps moon distances to fit within MOON_ORBIT_MIN to MOON_ORBIT_MAX * planet radius
+    let moonOrbitScale: (semiMajorAxis: number) => number = () => 0
+    // Period scale factor preserves relative angular speeds between moons
+    // The fastest moon gets scaled to MOON_PERIOD_MIN, others scaled proportionally
+    let moonPeriodScale = 1
+
+    if (body.moons && body.moons.length > 0) {
+      const moonDistances = body.moons.map((m) => m.semiMajorAxis)
+      const minDist = Math.min(...moonDistances)
+      const maxDist = Math.max(...moonDistances)
+      const minOrbit = radius * SCALE.MOON_ORBIT_MIN
+      const maxOrbit = radius * SCALE.MOON_ORBIT_MAX
+
+      if (maxDist === minDist) {
+        // Single moon or all at same distance - place at middle of range
+        const midOrbit = (minOrbit + maxOrbit) / 2
+        moonOrbitScale = () => midOrbit
+      } else {
+        // Scale proportionally
+        moonOrbitScale = (semiMajorAxis: number) => {
+          const t = (semiMajorAxis - minDist) / (maxDist - minDist)
+          return minOrbit + t * (maxOrbit - minOrbit)
+        }
+      }
+
+      // Calculate period scale to slow down fast moons while preserving ratios
+      const moonPeriods = body.moons.map((m) => Math.abs(m.orbitalPeriod))
+      const fastestPeriod = Math.min(...moonPeriods)
+      if (fastestPeriod < SCALE.MOON_PERIOD_MIN) {
+        moonPeriodScale = SCALE.MOON_PERIOD_MIN / fastestPeriod
+      }
+    }
+
+    // Create moons (limited by MOON_DISPLAY_LIMIT)
+    const moons: MoonData[] = []
     if (body.moons) {
-      for (const moonData of body.moons) {
-        const moonMesh = this.createMoon(moonData, mesh)
-        moons.push(moonMesh)
+      const moonsToShow = body.moons.slice(0, SCALE.MOON_DISPLAY_LIMIT)
+      for (const moonBody of moonsToShow) {
+        const moonData = this.createMoon(moonBody, moonOrbitScale)
+        moons.push(moonData)
       }
     }
 
     // Create label
-    this.createLabel(body.name, mesh.position.clone())
+    this.createLabel(body.name, planetParticles.mesh.position.clone())
 
     this.planets.push({
       body,
-      mesh,
+      particles: planetParticles.mesh,
       orbitLine,
       axisLine,
       moons,
-      rings,
-      ringParticles,
+      ringData,
+      moonOrbitScale,
+      moonPeriodScale,
     })
   }
 
-  private createMoon(body: CelestialBody, parent: THREE.Mesh): MoonMesh {
-    const radius = body.radius * SCALE.MOON_SCALE
-    const geometry = new THREE.SphereGeometry(Math.max(radius, 0.8), 16, 16)
-    const material = new THREE.MeshPhongMaterial({
-      color: body.color,
-      shininess: 5,
-    })
+  private createMoon(
+    body: CelestialBody,
+    orbitScale: (semiMajorAxis: number) => number
+  ): MoonData {
+    const radius = Math.max(body.radius * SCALE.MOON_SCALE, 0.8)
+    const particles = createParticleMoon(body, radius)
+    // Set rotation order for consistency
+    particles.rotation.order = 'YXZ'
+    this.scene.add(particles)
 
-    const mesh = new THREE.Mesh(geometry, material)
-    this.scene.add(mesh)
-
-    // Create orbit line relative to parent
-    const orbitLine = this.createOrbitLine(body, SCALE.MOON_DISTANCE_SCALE, true)
+    // Create orbit line using the planet-specific orbit scale
+    const orbitLine = this.createMoonOrbitLine(body, orbitScale)
     this.scene.add(orbitLine)
 
-    return { body, mesh, orbitLine }
+    return { body, particles, orbitLine }
+  }
+
+  private createMoonOrbitLine(
+    body: CelestialBody,
+    orbitScale: (semiMajorAxis: number) => number
+  ): THREE.Line {
+    const points: THREE.Vector3[] = []
+    const segments = 128
+
+    // Get the scaled orbital radius
+    const scaledRadius = orbitScale(body.semiMajorAxis)
+
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2
+      // Simple circular orbit approximation for moons (most are nearly circular)
+      const x = scaledRadius * Math.cos(angle)
+      const z = scaledRadius * Math.sin(angle)
+      points.push(new THREE.Vector3(x, 0, z))
+    }
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points)
+
+    // Make moon orbits more visible
+    const orbitColor = new THREE.Color(body.color)
+    orbitColor.lerp(new THREE.Color(0xffffff), 0.4) // brighten toward white
+
+    const material = new THREE.LineBasicMaterial({
+      color: orbitColor,
+      transparent: true,
+      opacity: 0.5,
+    })
+
+    return new THREE.Line(geometry, material)
   }
 
   private createOrbitLine(body: CelestialBody, distanceScale: number, isMoon = false): THREE.Line {
     const points: THREE.Vector3[] = []
-    const segments = 256 // More segments for smoother curves
+    const segments = 256
 
     for (let i = 0; i <= segments; i++) {
       const t = (i / segments) * Math.abs(body.orbitalPeriod)
@@ -254,7 +349,6 @@ export class SolarRenderer {
     if (isMoon) {
       orbitColor.multiplyScalar(0.3)
     } else {
-      // Brighten planet orbits
       orbitColor.lerp(new THREE.Color(0xffffff), 0.3)
     }
 
@@ -268,8 +362,6 @@ export class SolarRenderer {
   }
 
   private createAxisLine(body: CelestialBody, radius: number): THREE.Line {
-    // Create a line representing the rotation axis
-    // The line extends above and below the planet
     const axisLength = radius * 3
 
     const points = [
@@ -279,7 +371,6 @@ export class SolarRenderer {
 
     const geometry = new THREE.BufferGeometry().setFromPoints(points)
 
-    // Use a bright color for visibility
     const material = new THREE.LineBasicMaterial({
       color: 0x00ffff,
       transparent: true,
@@ -292,183 +383,9 @@ export class SolarRenderer {
     const tiltRad = (body.axialTilt * Math.PI) / 180
     line.rotation.z = tiltRad
 
-    // Initially hidden
     line.visible = this.showAxes
 
     return line
-  }
-
-  private createRings(
-    body: CelestialBody,
-    planetRadius: number
-  ): { mesh: THREE.InstancedMesh; particles: RingParticle[] } {
-    const innerRadius = planetRadius * (body.ringInnerRadius || 1.5)
-    const outerRadius = planetRadius * (body.ringOuterRadius || 2.5)
-
-    // Much smaller cubes for realistic rings
-    const baseCubeSize = 0.02 * planetRadius
-
-    const geometry = new THREE.BoxGeometry(baseCubeSize, baseCubeSize * 0.3, baseCubeSize)
-    // Use MeshBasicMaterial for self-lit appearance (no shadows, always visible)
-    const material = new THREE.MeshBasicMaterial({
-      color: 0xffffff, // Will be set per instance
-      transparent: true,
-      opacity: 0.95,
-    })
-
-    const mesh = new THREE.InstancedMesh(geometry, material, RING_CUBES_COUNT)
-
-    const particles: RingParticle[] = []
-    const matrix = new THREE.Matrix4()
-    const position = new THREE.Vector3()
-    const quaternion = new THREE.Quaternion()
-    const scale = new THREE.Vector3()
-
-    // Ring density distribution - denser toward certain radii (like Saturn's gaps)
-    const ringWidth = outerRadius - innerRadius
-
-    // Number of radial stripes/spokes
-    const numStripes = 24
-    const stripeWidth = (Math.PI * 2) / numStripes
-
-    for (let i = 0; i < RING_CUBES_COUNT; i++) {
-      // Create ring structure with varying density
-      // Use multiple passes for different ring bands
-      let r: number
-      const band = Math.random()
-      if (band < 0.3) {
-        // Inner dense ring (C ring - darker)
-        r = innerRadius + Math.random() * ringWidth * 0.25
-      } else if (band < 0.35) {
-        // Cassini Division gap (very few particles)
-        r = innerRadius + ringWidth * 0.25 + Math.random() * ringWidth * 0.05
-      } else if (band < 0.7) {
-        // B ring - brightest, densest
-        r = innerRadius + ringWidth * 0.3 + Math.random() * ringWidth * 0.35
-      } else if (band < 0.75) {
-        // A ring gap
-        r = innerRadius + ringWidth * 0.65 + Math.random() * ringWidth * 0.05
-      } else if (band < 0.92) {
-        // A ring
-        r = innerRadius + ringWidth * 0.7 + Math.random() * ringWidth * 0.2
-      } else {
-        // F ring - outer thin ring
-        r = innerRadius + ringWidth * 0.92 + Math.random() * ringWidth * 0.08
-      }
-
-      // Create stripe pattern - particles cluster near certain angles
-      // This creates radial density waves / spoke patterns
-      let baseAngle = Math.random() * Math.PI * 2
-
-      // 30% chance to be in a stripe (denser region)
-      if (Math.random() < 0.3) {
-        const stripeIndex = Math.floor(Math.random() * numStripes)
-        const stripeCenter = stripeIndex * stripeWidth
-        // Cluster around stripe center with gaussian-like distribution
-        baseAngle = stripeCenter + (Math.random() - 0.5) * stripeWidth * 0.6
-      }
-
-      // Very small vertical offset for thin ring plane
-      const yOffset = (Math.random() - 0.5) * baseCubeSize * 0.4
-
-      // Varying sizes for visual interest
-      const sizeVar = 0.6 + Math.random() * 0.8
-
-      // Rotation speed varies with radius (Kepler's 3rd law approximation)
-      // Inner particles orbit faster
-      const rotationSpeed = 0.1 / Math.sqrt(r / innerRadius)
-
-      particles.push({
-        baseAngle,
-        radius: r,
-        yOffset,
-        size: sizeVar,
-        rotationSpeed,
-      })
-
-      // Initial position
-      position.set(Math.cos(baseAngle) * r, yOffset, Math.sin(baseAngle) * r)
-      quaternion.setFromEuler(
-        new THREE.Euler(Math.random() * 0.1, Math.random() * Math.PI * 2, Math.random() * 0.1)
-      )
-      scale.set(sizeVar, sizeVar, sizeVar)
-
-      matrix.compose(position, quaternion, scale)
-      mesh.setMatrixAt(i, matrix)
-
-      // Color variation based on ring region
-      const baseColor = new THREE.Color(body.ringColor || 0xd4a574)
-      const normalizedR = (r - innerRadius) / ringWidth
-
-      // Different colors for different ring regions
-      let brightness: number
-      if (normalizedR < 0.25) {
-        // C ring - darker, more brownish
-        brightness = 0.6 + Math.random() * 0.2
-        baseColor.lerp(new THREE.Color(0x8b7355), 0.3)
-      } else if (normalizedR < 0.65) {
-        // B ring - brightest, more golden
-        brightness = 0.9 + Math.random() * 0.1
-        baseColor.lerp(new THREE.Color(0xffd700), 0.15)
-      } else if (normalizedR < 0.9) {
-        // A ring - medium brightness
-        brightness = 0.75 + Math.random() * 0.2
-      } else {
-        // F ring - slightly bluish tint
-        brightness = 0.7 + Math.random() * 0.2
-        baseColor.lerp(new THREE.Color(0xaabbcc), 0.2)
-      }
-
-      baseColor.multiplyScalar(brightness)
-      mesh.setColorAt(i, baseColor)
-    }
-
-    mesh.instanceMatrix.needsUpdate = true
-    if (mesh.instanceColor) {
-      mesh.instanceColor.needsUpdate = true
-    }
-
-    return { mesh, particles }
-  }
-
-  private updateRings(planet: PlanetMesh, deltaTime: number): void {
-    if (!planet.rings || !planet.ringParticles) return
-
-    const matrix = new THREE.Matrix4()
-    const position = new THREE.Vector3()
-    const quaternion = new THREE.Quaternion()
-    const scale = new THREE.Vector3()
-
-    // Get planet tilt for ring orientation
-    const tiltRad = (planet.body.axialTilt * Math.PI) / 180
-
-    for (let i = 0; i < planet.ringParticles.length; i++) {
-      const particle = planet.ringParticles[i]!
-
-      // Update angle based on rotation speed and simulation speed
-      particle.baseAngle += particle.rotationSpeed * deltaTime * this.speedFactor * 0.01
-
-      // Calculate position in ring plane
-      const x = Math.cos(particle.baseAngle) * particle.radius
-      const z = Math.sin(particle.baseAngle) * particle.radius
-      const y = particle.yOffset
-
-      position.set(x, y, z)
-
-      quaternion.setFromEuler(new THREE.Euler(0, particle.baseAngle, 0))
-      scale.set(particle.size, particle.size, particle.size)
-
-      matrix.compose(position, quaternion, scale)
-      planet.rings.setMatrixAt(i, matrix)
-    }
-
-    planet.rings.instanceMatrix.needsUpdate = true
-
-    // Position and orient rings with planet
-    // Rings are in the equatorial plane, perpendicular to the rotation axis
-    // The planet's axial tilt is applied around Z, so rings should also rotate around Z
-    planet.rings.position.copy(planet.mesh.position)
-    planet.rings.rotation.set(0, 0, tiltRad)
   }
 
   private createLabel(name: string, position: THREE.Vector3): void {
@@ -491,10 +408,9 @@ export class SolarRenderer {
   private updateLabels(): void {
     // Update Sun label
     const sunLabel = this.labels.get('Sun')
-    if (sunLabel && this.sunMesh) {
-      const pos = this.sunMesh.position.clone()
-      const sunRadius = SUN.radius * SCALE.SUN_SCALE
-      pos.y += sunRadius + 2
+    if (sunLabel && this.sunData) {
+      const pos = this.sunData.core.position.clone()
+      pos.y += this.sunRadius + 2
       this.updateLabelPosition(sunLabel, pos)
     }
 
@@ -502,9 +418,9 @@ export class SolarRenderer {
     for (const planet of this.planets) {
       const label = this.labels.get(planet.body.name)
       if (label) {
-        const pos = planet.mesh.position.clone()
-        const radius = planet.body.radius * SCALE.PLANET_SCALE
-        pos.y += Math.max(radius, 0.5) + 1
+        const pos = planet.particles.position.clone()
+        const radius = Math.max(planet.body.radius * SCALE.PLANET_SCALE, 0.5)
+        pos.y += radius + 1
         this.updateLabelPosition(label, pos)
       }
     }
@@ -517,7 +433,6 @@ export class SolarRenderer {
     const x = (vector.x * 0.5 + 0.5) * this.container.clientWidth
     const y = (vector.y * -0.5 + 0.5) * this.container.clientHeight
 
-    // Check if in front of camera
     if (vector.z < 1 && this.showLabels) {
       label.style.display = 'block'
       label.style.left = `${x}px`
@@ -538,17 +453,13 @@ export class SolarRenderer {
   private animate = (currentTime = 0): void => {
     requestAnimationFrame(this.animate)
 
-    // Calculate delta time
-    const deltaTime = (currentTime - this.lastTime) / 1000 // seconds
+    const deltaTime = (currentTime - this.lastTime) / 1000
     this.lastTime = currentTime
 
-    // Update simulation time
     this.time += deltaTime * this.speedFactor
 
-    // Update positions
     this.updatePositions(deltaTime)
 
-    // Follow target if set
     this.updateCameraFollow()
 
     this.updateLabels()
@@ -558,71 +469,80 @@ export class SolarRenderer {
   }
 
   private updatePositions(deltaTime: number): void {
-    // Rotate Sun
-    if (this.sunMesh) {
-      this.sunMesh.rotation.y = getRotationAngle(SUN, this.time)
+    // Update Sun corona animation
+    if (this.sunData) {
+      updateSunCorona(this.sunData, this.sunRadius, deltaTime * 10)
+      this.sunData.core.rotation.y = getRotationAngle(SUN, this.time)
     }
 
     // Update planets
     for (const planet of this.planets) {
       // Update planet position
       const pos = getOrbitalPosition(planet.body, this.time, SCALE.AU_TO_UNITS)
-      planet.mesh.position.set(pos.x, pos.z, pos.y)
+      planet.particles.position.set(pos.x, pos.z, pos.y)
 
       // Update planet rotation
       const rotAngle = getRotationAngle(planet.body, this.time)
-      planet.mesh.rotation.y = rotAngle
+      planet.particles.rotation.y = rotAngle
 
       // Update axis line position
       if (planet.axisLine) {
-        planet.axisLine.position.copy(planet.mesh.position)
+        planet.axisLine.position.copy(planet.particles.position)
       }
 
-      // Update rings with rotation
-      if (planet.rings && planet.ringParticles) {
-        this.updateRings(planet, deltaTime)
+      // Update rings
+      if (planet.ringData) {
+        updateRingParticles(
+          planet.ringData,
+          this.time,
+          deltaTime,
+          this.speedFactor,
+          planet.body.ringWiggleAmplitude ?? 0.02,
+          planet.body.ringWiggleSpeed ?? 1.0
+        )
+        const posAttr = planet.ringData.mesh.geometry.attributes.position
+        if (posAttr) posAttr.needsUpdate = true
+
+        // Position and tilt rings with planet
+        const tiltRad = (planet.body.axialTilt * Math.PI) / 180
+        planet.ringData.mesh.position.copy(planet.particles.position)
+        planet.ringData.mesh.rotation.set(0, 0, tiltRad)
       }
 
-      // Update moons - they orbit in the planet's equatorial plane
+      // Update moons
       const tiltRad = (planet.body.axialTilt * Math.PI) / 180
       const cosTilt = Math.cos(tiltRad)
       const sinTilt = Math.sin(tiltRad)
 
       for (const moon of planet.moons) {
-        // When not in true speed mode, limit moon orbital speed
-        // by using a minimum effective orbital period of 10 days
-        let moonTime = this.time
-        if (!this.trueSpeed) {
-          const minPeriod = 10 // minimum orbital period in days for visualization
-          const actualPeriod = Math.abs(moon.body.orbitalPeriod)
-          if (actualPeriod < minPeriod) {
-            // Scale time so moon appears to have longer orbital period
-            moonTime = this.time * (actualPeriod / minPeriod)
-          }
-        }
+        // Calculate moon position using scaled orbit and scaled period
+        const scaledRadius = planet.moonOrbitScale(moon.body.semiMajorAxis)
+        // Apply per-planet period scale (preserves relative angular speeds)
+        // When trueSpeed is enabled, use real periods; otherwise use scaled periods
+        const period = this.trueSpeed
+          ? Math.abs(moon.body.orbitalPeriod)
+          : Math.abs(moon.body.orbitalPeriod) * planet.moonPeriodScale
+        const angle = ((2 * Math.PI * this.time) / period) % (2 * Math.PI)
 
-        const moonPos = getOrbitalPosition(moon.body, moonTime, SCALE.MOON_DISTANCE_SCALE)
+        // Simple circular orbit in XZ plane
+        const localX = scaledRadius * Math.cos(angle)
+        const localY = 0
+        const localZ = scaledRadius * Math.sin(angle)
 
-        // Moon position in planet's reference frame (before tilt)
-        const localX = moonPos.x
-        const localY = moonPos.z // height above orbital plane
-        const localZ = moonPos.y
-
-        // Rotate around Z axis by planet's axial tilt
+        // Apply planet's axial tilt
         const tiltedX = localX * cosTilt - localY * sinTilt
         const tiltedY = localX * sinTilt + localY * cosTilt
         const tiltedZ = localZ
 
-        moon.mesh.position.set(
-          planet.mesh.position.x + tiltedX,
-          planet.mesh.position.y + tiltedY,
-          planet.mesh.position.z + tiltedZ
+        moon.particles.position.set(
+          planet.particles.position.x + tiltedX,
+          planet.particles.position.y + tiltedY,
+          planet.particles.position.z + tiltedZ
         )
-        moon.mesh.rotation.y = getRotationAngle(moon.body, moonTime)
+        moon.particles.rotation.y = getRotationAngle(moon.body, this.time)
 
-        // Update moon orbit line position and tilt
         if (moon.orbitLine) {
-          moon.orbitLine.position.copy(planet.mesh.position)
+          moon.orbitLine.position.copy(planet.particles.position)
           moon.orbitLine.rotation.set(0, 0, tiltRad)
         }
       }
@@ -634,21 +554,17 @@ export class SolarRenderer {
 
     let targetPos: THREE.Vector3 | null = null
 
-    if (this.followTarget === 'Sun' && this.sunMesh) {
-      targetPos = this.sunMesh.position.clone()
+    if (this.followTarget === 'Sun' && this.sunData) {
+      targetPos = this.sunData.core.position.clone()
     } else {
       const planet = this.planets.find((p) => p.body.name === this.followTarget)
       if (planet) {
-        targetPos = planet.mesh.position.clone()
+        targetPos = planet.particles.position.clone()
       }
     }
 
     if (targetPos) {
-      // Calculate movement delta from last frame
       const delta = targetPos.clone().sub(this.controls.target)
-
-      // Move both target and camera by the same amount
-      // This keeps the relative camera position while following the object
       this.controls.target.add(delta)
       this.camera.position.add(delta)
     }
@@ -711,7 +627,6 @@ export class SolarRenderer {
     this.followTarget = name
 
     if (name) {
-      // Initial jump to target
       this.focusOnPlanet(name)
     }
   }
@@ -721,18 +636,17 @@ export class SolarRenderer {
   }
 
   focusOnPlanet(name: string): void {
-    if (name === 'Sun' && this.sunMesh) {
-      this.controls.target.copy(this.sunMesh.position)
-      const sunRadius = SUN.radius * SCALE.SUN_SCALE
-      const distance = sunRadius * 3
+    if (name === 'Sun' && this.sunData) {
+      this.controls.target.copy(this.sunData.core.position)
+      const distance = this.sunRadius * 3
       this.camera.position.set(distance, distance * 0.5, distance)
     } else {
       const planet = this.planets.find((p) => p.body.name === name)
       if (planet) {
-        this.controls.target.copy(planet.mesh.position)
+        this.controls.target.copy(planet.particles.position)
         const radius = planet.body.radius * SCALE.PLANET_SCALE
         const distance = Math.max(radius * 8, 5)
-        this.camera.position.copy(planet.mesh.position)
+        this.camera.position.copy(planet.particles.position)
         this.camera.position.x += distance
         this.camera.position.y += distance * 0.5
         this.camera.position.z += distance
@@ -745,15 +659,13 @@ export class SolarRenderer {
     this.renderer.dispose()
     this.controls.dispose()
 
-    // Remove labels
     for (const label of this.labels.values()) {
       label.remove()
     }
     this.labels.clear()
 
-    // Dispose geometries and materials
     this.scene.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
+      if (object instanceof THREE.Points || object instanceof THREE.Mesh) {
         object.geometry.dispose()
         if (Array.isArray(object.material)) {
           object.material.forEach((m) => m.dispose())

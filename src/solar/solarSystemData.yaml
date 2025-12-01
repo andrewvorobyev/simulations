@@ -1,0 +1,628 @@
+# Solar System Data
+# Physical parameters are accurate, scaling is for visualization
+
+scale:
+  AU_TO_UNITS: 100          # 1 AU = 100 display units
+  PLANET_SCALE: 0.0005      # km to units for planet radii
+  SUN_SCALE: 0.00003        # Sun smaller to not overlap Mercury (696340 * 0.00003 = 20.9 < 38.7 units)
+  MOON_SCALE: 0.001         # km to units for moon radii
+  # Moon orbits are scaled to fit within min-max range relative to planet radius
+  # MOON_ORBIT_MIN must be > max ring outerRadius (2.5) to keep moons outside rings
+  MOON_ORBIT_MIN: 3.0       # closest moon at 3x planet radius (outside rings)
+  MOON_ORBIT_MAX: 8.0       # farthest moon at 8x planet radius
+  MOON_DISPLAY_LIMIT: 10    # max moons to display per planet
+  # Moon orbital speeds are scaled per planet to preserve relative angular velocities
+  # The fastest moon of each planet will have this minimum period (days)
+  MOON_PERIOD_MIN: 3.0      # minimum period for fastest moon display
+
+sun:
+  name: Sun
+  radius: 696340            # km
+  color: 0xffff00
+  emissive: 0xffaa00
+  axialTilt: 7.25           # degrees
+  rotationPeriod: 609.12    # hours (~25.4 days at equator)
+
+planets:
+  - name: Mercury
+    radius: 2439.7
+    color: 0x8c8c8c
+    semiMajorAxis: 0.387
+    eccentricity: 0.2056
+    orbitalPeriod: 87.97
+    orbitalInclination: 7.0
+    longitudeOfAscendingNode: 48.33
+    argumentOfPeriapsis: 29.12
+    axialTilt: 0.034
+    rotationPeriod: 1407.6  # 58.65 days
+
+  - name: Venus
+    radius: 6051.8
+    color: 0xe6c87a
+    semiMajorAxis: 0.723
+    eccentricity: 0.0068
+    orbitalPeriod: 224.7
+    orbitalInclination: 3.39
+    longitudeOfAscendingNode: 76.68
+    argumentOfPeriapsis: 54.88
+    axialTilt: 177.4        # retrograde
+    rotationPeriod: -5832.5 # 243 days retrograde
+
+  - name: Earth
+    radius: 6371
+    color: 0x6b93d6
+    semiMajorAxis: 1.0
+    eccentricity: 0.0167
+    orbitalPeriod: 365.25
+    orbitalInclination: 0.0
+    longitudeOfAscendingNode: 348.74
+    argumentOfPeriapsis: 114.21
+    axialTilt: 23.44
+    rotationPeriod: 23.93
+    moons:
+      - name: Moon
+        radius: 1737.4
+        color: 0xaaaaaa
+        semiMajorAxis: 384400
+        eccentricity: 0.0549
+        orbitalPeriod: 27.32
+        orbitalInclination: 5.145
+        longitudeOfAscendingNode: 125.08
+        argumentOfPeriapsis: 318.15
+        axialTilt: 6.68
+        rotationPeriod: 655.7   # tidally locked
+
+  - name: Mars
+    radius: 3389.5
+    color: 0xc1440e
+    semiMajorAxis: 1.524
+    eccentricity: 0.0934
+    orbitalPeriod: 687.0
+    orbitalInclination: 1.85
+    longitudeOfAscendingNode: 49.56
+    argumentOfPeriapsis: 286.5
+    axialTilt: 25.19
+    rotationPeriod: 24.62
+    moons:
+      - name: Phobos
+        radius: 11.27
+        color: 0x8a8a8a
+        semiMajorAxis: 9376
+        eccentricity: 0.0151
+        orbitalPeriod: 0.319
+        orbitalInclination: 1.093
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 7.66
+      - name: Deimos
+        radius: 6.2
+        color: 0x9a9a9a
+        semiMajorAxis: 23463
+        eccentricity: 0.0002
+        orbitalPeriod: 1.263
+        orbitalInclination: 0.93
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 30.3
+
+  - name: Jupiter
+    radius: 69911
+    color: 0xd8ca9d
+    semiMajorAxis: 5.203
+    eccentricity: 0.0489
+    orbitalPeriod: 4332.59
+    orbitalInclination: 1.304
+    longitudeOfAscendingNode: 100.46
+    argumentOfPeriapsis: 273.87
+    axialTilt: 3.13
+    rotationPeriod: 9.93
+    ring:
+      innerRadius: 1.4
+      outerRadius: 1.8
+      color: 0x8b7355
+      rotationPeriod: 7.0      # hours - inner edge rotates faster
+      wiggleAmplitude: 0.015
+      wiggleSpeed: 0.8
+    moons:
+      - name: Io
+        radius: 1821.6
+        color: 0xffff66
+        semiMajorAxis: 421800
+        eccentricity: 0.0041
+        orbitalPeriod: 1.769
+        orbitalInclination: 0.036
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 42.46
+      - name: Europa
+        radius: 1560.8
+        color: 0xb8a894
+        semiMajorAxis: 671100
+        eccentricity: 0.009
+        orbitalPeriod: 3.551
+        orbitalInclination: 0.466
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0.1
+        rotationPeriod: 85.22
+      - name: Ganymede
+        radius: 2634.1
+        color: 0x8b8378
+        semiMajorAxis: 1070400
+        eccentricity: 0.0013
+        orbitalPeriod: 7.155
+        orbitalInclination: 0.177
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0.33
+        rotationPeriod: 171.7
+      - name: Callisto
+        radius: 2410.3
+        color: 0x6b6b6b
+        semiMajorAxis: 1882700
+        eccentricity: 0.0074
+        orbitalPeriod: 16.689
+        orbitalInclination: 0.192
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 400.5
+      - name: Amalthea
+        radius: 83.5
+        color: 0xcc4444
+        semiMajorAxis: 181400
+        eccentricity: 0.003
+        orbitalPeriod: 0.498
+        orbitalInclination: 0.374
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 11.95
+      - name: Thebe
+        radius: 49.3
+        color: 0x8b7355
+        semiMajorAxis: 221900
+        eccentricity: 0.018
+        orbitalPeriod: 0.675
+        orbitalInclination: 1.08
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 16.2
+      - name: Metis
+        radius: 21.5
+        color: 0x666666
+        semiMajorAxis: 128000
+        eccentricity: 0.0002
+        orbitalPeriod: 0.295
+        orbitalInclination: 0.06
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 7.08
+      - name: Himalia
+        radius: 85
+        color: 0x7a7a7a
+        semiMajorAxis: 11460000
+        eccentricity: 0.162
+        orbitalPeriod: 250.56
+        orbitalInclination: 27.5
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 7.78
+      - name: Elara
+        radius: 43
+        color: 0x888888
+        semiMajorAxis: 11741000
+        eccentricity: 0.217
+        orbitalPeriod: 259.65
+        orbitalInclination: 26.63
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 12.0
+      - name: Pasiphae
+        radius: 30
+        color: 0x555555
+        semiMajorAxis: 23624000
+        eccentricity: 0.409
+        orbitalPeriod: -743.63
+        orbitalInclination: 151.4
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 0
+
+  - name: Saturn
+    radius: 58232
+    color: 0xead6a6
+    semiMajorAxis: 9.537
+    eccentricity: 0.0565
+    orbitalPeriod: 10759.22
+    orbitalInclination: 2.485
+    longitudeOfAscendingNode: 113.67
+    argumentOfPeriapsis: 339.39
+    axialTilt: 26.73
+    rotationPeriod: 10.66
+    ring:
+      innerRadius: 1.2
+      outerRadius: 2.3
+      color: 0xc9b896
+      rotationPeriod: 8.0      # hours - prominent rings rotate with Keplerian dynamics
+      wiggleAmplitude: 0.025   # more visible wiggle for Saturn's rings
+      wiggleSpeed: 1.2
+    moons:
+      - name: Titan
+        radius: 2574.7
+        color: 0xdaa520
+        semiMajorAxis: 1221870
+        eccentricity: 0.0288
+        orbitalPeriod: 15.945
+        orbitalInclination: 0.348
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 382.7
+      - name: Rhea
+        radius: 763.8
+        color: 0xbbbbbb
+        semiMajorAxis: 527068
+        eccentricity: 0.001
+        orbitalPeriod: 4.518
+        orbitalInclination: 0.345
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 108.4
+      - name: Iapetus
+        radius: 734.5
+        color: 0x8b7355
+        semiMajorAxis: 3560854
+        eccentricity: 0.0286
+        orbitalPeriod: 79.322
+        orbitalInclination: 15.47
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 1903.9
+      - name: Dione
+        radius: 561.4
+        color: 0xcccccc
+        semiMajorAxis: 377415
+        eccentricity: 0.0022
+        orbitalPeriod: 2.737
+        orbitalInclination: 0.028
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 65.7
+      - name: Tethys
+        radius: 531.1
+        color: 0xdddddd
+        semiMajorAxis: 294672
+        eccentricity: 0.0001
+        orbitalPeriod: 1.888
+        orbitalInclination: 1.091
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 45.3
+      - name: Enceladus
+        radius: 252.1
+        color: 0xf0f0f0
+        semiMajorAxis: 238042
+        eccentricity: 0.0047
+        orbitalPeriod: 1.37
+        orbitalInclination: 0.009
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 32.9
+      - name: Mimas
+        radius: 198.2
+        color: 0xc0c0c0
+        semiMajorAxis: 185539
+        eccentricity: 0.0196
+        orbitalPeriod: 0.942
+        orbitalInclination: 1.574
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 22.6
+      - name: Hyperion
+        radius: 135
+        color: 0xa08060
+        semiMajorAxis: 1481010
+        eccentricity: 0.123
+        orbitalPeriod: 21.28
+        orbitalInclination: 0.43
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 0  # chaotic rotation
+      - name: Phoebe
+        radius: 106.5
+        color: 0x444444
+        semiMajorAxis: 12952000
+        eccentricity: 0.1635
+        orbitalPeriod: -550.31
+        orbitalInclination: 175.3
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 9.27
+      - name: Janus
+        radius: 89.5
+        color: 0xaaaaaa
+        semiMajorAxis: 151460
+        eccentricity: 0.0068
+        orbitalPeriod: 0.695
+        orbitalInclination: 0.163
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 16.7
+
+  - name: Uranus
+    radius: 25362
+    color: 0xadd8e6
+    semiMajorAxis: 19.19
+    eccentricity: 0.0457
+    orbitalPeriod: 30688.5
+    orbitalInclination: 0.772
+    longitudeOfAscendingNode: 74.0
+    argumentOfPeriapsis: 96.73
+    axialTilt: 97.77           # extreme tilt
+    rotationPeriod: -17.24     # retrograde
+    ring:
+      innerRadius: 1.6
+      outerRadius: 2.0
+      color: 0x4a5568
+      rotationPeriod: 12.0     # hours
+      wiggleAmplitude: 0.01
+      wiggleSpeed: 0.6
+    moons:
+      - name: Titania
+        radius: 788.9
+        color: 0x999999
+        semiMajorAxis: 436300
+        eccentricity: 0.0011
+        orbitalPeriod: 8.706
+        orbitalInclination: 0.079
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 208.9
+      - name: Oberon
+        radius: 761.4
+        color: 0x888888
+        semiMajorAxis: 583500
+        eccentricity: 0.0014
+        orbitalPeriod: 13.463
+        orbitalInclination: 0.058
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 323.1
+      - name: Umbriel
+        radius: 584.7
+        color: 0x666666
+        semiMajorAxis: 266000
+        eccentricity: 0.0039
+        orbitalPeriod: 4.144
+        orbitalInclination: 0.128
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 99.5
+      - name: Ariel
+        radius: 578.9
+        color: 0xbbbbbb
+        semiMajorAxis: 190900
+        eccentricity: 0.0012
+        orbitalPeriod: 2.52
+        orbitalInclination: 0.041
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 60.5
+      - name: Miranda
+        radius: 235.8
+        color: 0xaaaaaa
+        semiMajorAxis: 129900
+        eccentricity: 0.0013
+        orbitalPeriod: 1.413
+        orbitalInclination: 4.338
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 33.9
+      - name: Puck
+        radius: 81
+        color: 0x777777
+        semiMajorAxis: 86010
+        eccentricity: 0.00012
+        orbitalPeriod: 0.762
+        orbitalInclination: 0.319
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 18.3
+      - name: Portia
+        radius: 67.6
+        color: 0x888888
+        semiMajorAxis: 66097
+        eccentricity: 0.00005
+        orbitalPeriod: 0.513
+        orbitalInclination: 0.059
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 12.3
+      - name: Juliet
+        radius: 46.8
+        color: 0x999999
+        semiMajorAxis: 64360
+        eccentricity: 0.00066
+        orbitalPeriod: 0.493
+        orbitalInclination: 0.065
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 11.8
+      - name: Desdemona
+        radius: 32
+        color: 0x8a8a8a
+        semiMajorAxis: 62659
+        eccentricity: 0.00013
+        orbitalPeriod: 0.474
+        orbitalInclination: 0.113
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 11.4
+      - name: Cressida
+        radius: 39.8
+        color: 0x7b7b7b
+        semiMajorAxis: 61780
+        eccentricity: 0.00036
+        orbitalPeriod: 0.464
+        orbitalInclination: 0.006
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 11.1
+
+  - name: Neptune
+    radius: 24622
+    color: 0x4169e1
+    semiMajorAxis: 30.07
+    eccentricity: 0.0113
+    orbitalPeriod: 60182.0
+    orbitalInclination: 1.77
+    longitudeOfAscendingNode: 131.78
+    argumentOfPeriapsis: 273.19
+    axialTilt: 28.32
+    rotationPeriod: 16.11
+    ring:
+      innerRadius: 1.7
+      outerRadius: 2.5
+      color: 0x2f4f4f
+      rotationPeriod: 10.0     # hours
+      wiggleAmplitude: 0.012
+      wiggleSpeed: 0.7
+    moons:
+      - name: Triton
+        radius: 1353.4
+        color: 0xb8a894
+        semiMajorAxis: 354759
+        eccentricity: 0.00002
+        orbitalPeriod: -5.877  # retrograde
+        orbitalInclination: 156.885
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 141.0
+      - name: Proteus
+        radius: 210
+        color: 0x777777
+        semiMajorAxis: 117646
+        eccentricity: 0.0005
+        orbitalPeriod: 1.122
+        orbitalInclination: 0.524
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 26.9
+      - name: Nereid
+        radius: 170
+        color: 0x666666
+        semiMajorAxis: 5513818
+        eccentricity: 0.7512
+        orbitalPeriod: 360.13
+        orbitalInclination: 7.23
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 11.52
+      - name: Larissa
+        radius: 97
+        color: 0x888888
+        semiMajorAxis: 73548
+        eccentricity: 0.0014
+        orbitalPeriod: 0.555
+        orbitalInclination: 0.20
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 13.32
+      - name: Galatea
+        radius: 88
+        color: 0x999999
+        semiMajorAxis: 61953
+        eccentricity: 0.0001
+        orbitalPeriod: 0.429
+        orbitalInclination: 0.05
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 10.3
+      - name: Despina
+        radius: 75
+        color: 0x8a8a8a
+        semiMajorAxis: 52526
+        eccentricity: 0.0001
+        orbitalPeriod: 0.335
+        orbitalInclination: 0.07
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 8.0
+      - name: Thalassa
+        radius: 41
+        color: 0x7a7a7a
+        semiMajorAxis: 50074
+        eccentricity: 0.0002
+        orbitalPeriod: 0.311
+        orbitalInclination: 0.21
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 7.5
+      - name: Naiad
+        radius: 33
+        color: 0x6b6b6b
+        semiMajorAxis: 48227
+        eccentricity: 0.0003
+        orbitalPeriod: 0.294
+        orbitalInclination: 4.74
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 7.1
+      - name: Halimede
+        radius: 31
+        color: 0x555555
+        semiMajorAxis: 16611000
+        eccentricity: 0.2646
+        orbitalPeriod: -1879.08
+        orbitalInclination: 112.71
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 0
+      - name: Neso
+        radius: 30
+        color: 0x444444
+        semiMajorAxis: 49285000
+        eccentricity: 0.5714
+        orbitalPeriod: -9740.73
+        orbitalInclination: 136.44
+        longitudeOfAscendingNode: 0
+        argumentOfPeriapsis: 0
+        axialTilt: 0
+        rotationPeriod: 0
