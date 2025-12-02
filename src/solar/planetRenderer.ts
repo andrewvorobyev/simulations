@@ -588,3 +588,225 @@ export function updateRingParticles(
     positions[idx + 2] = Math.sin(newAngle) * r
   }
 }
+
+// Asteroid belt data structure
+export interface AsteroidBeltData {
+  mesh: THREE.Points
+  positions: Float32Array
+  velocities: Float32Array // orbital velocity for each asteroid
+  eccentricities: Float32Array
+  phases: Float32Array // initial orbital phase
+  semiMajorAxes: Float32Array
+}
+
+// Create main asteroid belt between Mars and Jupiter
+export function createAsteroidBelt(
+  auToUnits: number,
+  particleCount = 8000
+): AsteroidBeltData {
+  // Main belt is between 2.1 and 3.3 AU, with Kirkwood gaps
+  const positions = new Float32Array(particleCount * 3)
+  const colors = new Float32Array(particleCount * 3)
+  const velocities = new Float32Array(particleCount)
+  const eccentricities = new Float32Array(particleCount)
+  const phases = new Float32Array(particleCount)
+  const semiMajorAxes = new Float32Array(particleCount)
+
+  // Kirkwood gaps at resonances with Jupiter (in AU)
+  const kirkwoodGaps = [
+    { center: 2.5, width: 0.05 }, // 3:1 resonance
+    { center: 2.82, width: 0.03 }, // 5:2 resonance
+    { center: 2.95, width: 0.03 }, // 7:3 resonance
+    { center: 3.27, width: 0.04 }, // 2:1 resonance
+  ]
+
+  const isInGap = (au: number): boolean => {
+    for (const gap of kirkwoodGaps) {
+      if (Math.abs(au - gap.center) < gap.width) return true
+    }
+    return false
+  }
+
+  for (let i = 0; i < particleCount; i++) {
+    // Generate semi-major axis avoiding Kirkwood gaps
+    let au: number
+    do {
+      // Distribution weighted toward inner belt
+      au = 2.1 + Math.pow(Math.random(), 0.7) * 1.2
+    } while (isInGap(au))
+
+    const a = au * auToUnits
+    semiMajorAxes[i] = a
+
+    // Realistic eccentricity distribution (most are low, some higher)
+    const e = Math.random() * Math.random() * 0.3
+    eccentricities[i] = e
+
+    // Random orbital phase
+    const phase = Math.random() * Math.PI * 2
+    phases[i] = phase
+
+    // Initial position using orbital elements
+    const r = a * (1 - e * Math.cos(phase))
+    const x = r * Math.cos(phase)
+    const z = r * Math.sin(phase)
+
+    // Small inclination (most asteroids are near ecliptic)
+    const inclination = (Math.random() - 0.5) * 0.3 // ~17 degrees max
+    const y = r * Math.sin(phase) * Math.sin(inclination)
+
+    positions[i * 3] = x
+    positions[i * 3 + 1] = y
+    positions[i * 3 + 2] = z
+
+    // Keplerian orbital velocity (inversely proportional to sqrt of distance)
+    velocities[i] = 1 / Math.sqrt(au)
+
+    // Gray/brown colors for asteroids
+    const brightness = 0.3 + Math.random() * 0.4
+    const redness = Math.random() * 0.15
+    colors[i * 3] = brightness + redness
+    colors[i * 3 + 1] = brightness
+    colors[i * 3 + 2] = brightness - redness * 0.5
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+
+  const material = new THREE.PointsMaterial({
+    size: 0.4,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.8,
+    sizeAttenuation: true,
+  })
+
+  const mesh = new THREE.Points(geometry, material)
+
+  return { mesh, positions, velocities, eccentricities, phases, semiMajorAxes }
+}
+
+// Update asteroid belt orbital motion
+export function updateAsteroidBelt(
+  beltData: AsteroidBeltData,
+  time: number, // in days
+  _deltaTime: number
+): void {
+  const { positions, velocities, eccentricities, phases, semiMajorAxes } = beltData
+  const particleCount = velocities.length
+
+  for (let i = 0; i < particleCount; i++) {
+    const idx = i * 3
+    const a = semiMajorAxes[i]!
+    const e = eccentricities[i]!
+    const initialPhase = phases[i]!
+    const orbitalSpeed = velocities[i]!
+
+    // Calculate current orbital angle (mean anomaly approximation)
+    // Period in days = a^1.5 years * 365.25
+    const periodDays = Math.pow(a, 1.5) * 0.01 // simplified scaling
+    const angle = initialPhase + (2 * Math.PI * time * orbitalSpeed) / periodDays
+
+    // Eccentric orbit position
+    const r = a * (1 - e * Math.cos(angle))
+    positions[idx] = r * Math.cos(angle)
+    positions[idx + 2] = r * Math.sin(angle)
+    // Keep y (inclination) constant
+  }
+}
+
+// Trojan asteroid data structure
+export interface TrojanData {
+  mesh: THREE.Points
+  positions: Float32Array
+  offsets: Float32Array // offset angles from L4/L5 point
+  distances: Float32Array // distance from Lagrange point center
+  velocities: Float32Array
+}
+
+// Create Trojan asteroids at Jupiter's L4 or L5 point
+export function createTrojanAsteroids(
+  jupiterOrbitRadius: number, // in display units
+  lagrangePoint: 'L4' | 'L5',
+  particleCount = 2000
+): TrojanData {
+  const positions = new Float32Array(particleCount * 3)
+  const colors = new Float32Array(particleCount * 3)
+  const offsets = new Float32Array(particleCount)
+  const distances = new Float32Array(particleCount)
+  const velocities = new Float32Array(particleCount)
+
+  // L4 is 60° ahead, L5 is 60° behind
+  const lagrangeAngle = lagrangePoint === 'L4' ? Math.PI / 3 : -Math.PI / 3
+
+  for (let i = 0; i < particleCount; i++) {
+    // Trojans form a cloud around the Lagrange point
+    // Spread roughly ±15° around the point
+    const angleOffset = (Math.random() - 0.5) * 0.5 // ~±15°
+    offsets[i] = angleOffset
+
+    // Distance variation from Jupiter's orbit (libration)
+    const distanceVariation = 1 + (Math.random() - 0.5) * 0.15
+    const r = jupiterOrbitRadius * distanceVariation
+    distances[i] = distanceVariation
+
+    // Initial position (will be updated relative to Jupiter)
+    const angle = lagrangeAngle + angleOffset
+    positions[i * 3] = r * Math.cos(angle)
+    positions[i * 3 + 1] = (Math.random() - 0.5) * jupiterOrbitRadius * 0.05 // small inclination
+    positions[i * 3 + 2] = r * Math.sin(angle)
+
+    // Slight velocity variation for libration
+    velocities[i] = 0.95 + Math.random() * 0.1
+
+    // Darker, more brownish than main belt
+    const brightness = 0.25 + Math.random() * 0.3
+    colors[i * 3] = brightness + 0.05
+    colors[i * 3 + 1] = brightness
+    colors[i * 3 + 2] = brightness - 0.05
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+
+  const material = new THREE.PointsMaterial({
+    size: 0.5,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.75,
+    sizeAttenuation: true,
+  })
+
+  const mesh = new THREE.Points(geometry, material)
+
+  return { mesh, positions, offsets, distances, velocities }
+}
+
+// Update Trojan asteroids to follow Jupiter
+export function updateTrojanAsteroids(
+  trojanData: TrojanData,
+  jupiterAngle: number, // Jupiter's current orbital angle
+  jupiterRadius: number, // Jupiter's orbital radius
+  lagrangePoint: 'L4' | 'L5'
+): void {
+  const { positions, offsets, distances } = trojanData
+  const particleCount = offsets.length
+
+  // L4 is 60° ahead, L5 is 60° behind
+  const lagrangeOffset = lagrangePoint === 'L4' ? Math.PI / 3 : -Math.PI / 3
+
+  for (let i = 0; i < particleCount; i++) {
+    const idx = i * 3
+    const angleOffset = offsets[i]!
+    const distanceVar = distances[i]!
+
+    const angle = jupiterAngle + lagrangeOffset + angleOffset
+    const r = jupiterRadius * distanceVar
+
+    positions[idx] = r * Math.cos(angle)
+    positions[idx + 2] = r * Math.sin(angle)
+    // Keep y constant
+  }
+}

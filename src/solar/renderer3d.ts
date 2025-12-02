@@ -15,8 +15,14 @@ import {
   createRingParticles,
   updateSunCorona,
   updateRingParticles,
+  createAsteroidBelt,
+  updateAsteroidBelt,
+  createTrojanAsteroids,
+  updateTrojanAsteroids,
   type RingParticleData,
   type PlanetMeshData,
+  type AsteroidBeltData,
+  type TrojanData,
 } from './planetRenderer'
 
 interface PlanetData {
@@ -54,6 +60,10 @@ export class SolarRenderer {
   private sunLight: THREE.PointLight | null = null
   private sunRadius = 0
   private planets: PlanetData[] = []
+  private asteroidBelt: AsteroidBeltData | null = null
+  private trojanL4: TrojanData | null = null
+  private trojanL5: TrojanData | null = null
+  private jupiterOrbitRadius = 0
 
   private time = 0 // simulation time in days
   private speedFactor = 1 // days per second
@@ -167,6 +177,22 @@ export class SolarRenderer {
     // Create planets
     for (const planetData of PLANETS) {
       this.createPlanet(planetData)
+    }
+
+    // Create main asteroid belt between Mars and Jupiter
+    this.asteroidBelt = createAsteroidBelt(SCALE.AU_TO_UNITS, 8000)
+    this.scene.add(this.asteroidBelt.mesh)
+
+    // Find Jupiter's orbit radius for Trojans
+    const jupiter = PLANETS.find((p) => p.name === 'Jupiter')
+    if (jupiter) {
+      this.jupiterOrbitRadius = jupiter.semiMajorAxis * SCALE.AU_TO_UNITS
+
+      // Create Trojan asteroids at L4 (leading) and L5 (trailing)
+      this.trojanL4 = createTrojanAsteroids(this.jupiterOrbitRadius, 'L4', 2000)
+      this.trojanL5 = createTrojanAsteroids(this.jupiterOrbitRadius, 'L5', 2000)
+      this.scene.add(this.trojanL4.mesh)
+      this.scene.add(this.trojanL5.mesh)
     }
   }
 
@@ -526,6 +552,29 @@ export class SolarRenderer {
           moon.orbitLine.rotation.set(0, 0, tiltRad)
         }
       }
+    }
+
+    // Update asteroid belt
+    if (this.asteroidBelt) {
+      updateAsteroidBelt(this.asteroidBelt, this.time, deltaTime)
+      const posAttr = this.asteroidBelt.mesh.geometry.attributes.position
+      if (posAttr) posAttr.needsUpdate = true
+    }
+
+    // Update Trojan asteroids - they follow Jupiter
+    const jupiter = this.planets.find((p) => p.body.name === 'Jupiter')
+    if (jupiter && this.trojanL4 && this.trojanL5) {
+      // Calculate Jupiter's current orbital angle
+      const jupiterPos = jupiter.mesh.position
+      const jupiterAngle = Math.atan2(jupiterPos.z, jupiterPos.x)
+
+      updateTrojanAsteroids(this.trojanL4, jupiterAngle, this.jupiterOrbitRadius, 'L4')
+      updateTrojanAsteroids(this.trojanL5, jupiterAngle, this.jupiterOrbitRadius, 'L5')
+
+      const l4Attr = this.trojanL4.mesh.geometry.attributes.position
+      const l5Attr = this.trojanL5.mesh.geometry.attributes.position
+      if (l4Attr) l4Attr.needsUpdate = true
+      if (l5Attr) l5Attr.needsUpdate = true
     }
   }
 
