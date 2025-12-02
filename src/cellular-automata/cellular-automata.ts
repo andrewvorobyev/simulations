@@ -4,6 +4,8 @@ import { runSimulation } from './engine'
 import { simulations, getSimulation } from './simulations'
 import type { Simulation } from './types'
 
+const BASE = import.meta.env.BASE_URL
+
 class CellularAutomataApp {
   private renderer: Renderer | null = null
   private currentSimulation: Simulation | null = null
@@ -39,10 +41,10 @@ class CellularAutomataApp {
         <div class="spacer"></div>
         <button id="center-btn" class="secondary">Center View</button>
         <div class="nav-links">
-          <a href="/" class="nav-link">Home</a>
+          <a href="${BASE}" class="nav-link">Home</a>
           <span class="nav-current">1D Automata</span>
-          <a href="/life" class="nav-link">3D Life</a>
-          <a href="/solar" class="nav-link">Solar System</a>
+          <a href="${BASE}life" class="nav-link">3D Life</a>
+          <a href="${BASE}solar" class="nav-link">Solar System</a>
         </div>
       </div>
       <div class="canvas-container">

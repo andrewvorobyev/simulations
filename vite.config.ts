@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 
-export default defineConfig(({ command }) => ({
-  // Base path: /simulations/ for production (GitHub Pages), / for local dev
-  base: command === 'build' ? '/simulations/' : '/',
+export default defineConfig({
+  // Base path for both local dev and GitHub Pages
+  base: '/simulations/',
   // Handle SPA routing - serve index.html for all routes
   appType: 'spa',
-}))
+})

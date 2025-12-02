@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import { type CelestialBody, SCALE } from './solarSystem'
 
+export const BASE = import.meta.env.BASE_URL
+
 // Planet mesh data structure
 export interface PlanetMeshData {
   mesh: THREE.Mesh
@@ -271,7 +273,7 @@ export function createPlanetMesh(body: CelestialBody, radius: number): PlanetMes
   let texture: THREE.Texture
 
   if (textureUrl) {
-    texture = textureLoader.load(textureUrl)
+    texture = textureLoader.load(`${BASE}${textureUrl.slice(1)}`)
     texture.colorSpace = THREE.SRGBColorSpace
   } else {
     // Fallback to procedural texture for unknown planets
@@ -306,7 +308,7 @@ export function createMoonMesh(body: CelestialBody, radius: number): THREE.Mesh 
 
   // Load moon texture (cached)
   if (!cachedMoonTexture) {
-    cachedMoonTexture = textureLoader.load('/textures/2k_moon.jpg')
+    cachedMoonTexture = textureLoader.load(`${BASE}textures/2k_moon.jpg`)
     cachedMoonTexture.colorSpace = THREE.SRGBColorSpace
   }
 
@@ -329,7 +331,7 @@ export function createMoonMesh(body: CelestialBody, radius: number): THREE.Mesh 
 export function createParticleSun(radius: number): SunParticleData {
   // Create textured sphere for sun core
   const geometry = new THREE.SphereGeometry(radius, 64, 64)
-  const sunTexture = textureLoader.load('/textures/2k_sun.jpg')
+  const sunTexture = textureLoader.load(`${BASE}textures/2k_sun.jpg`)
   sunTexture.colorSpace = THREE.SRGBColorSpace
 
   const coreMaterial = new THREE.MeshBasicMaterial({

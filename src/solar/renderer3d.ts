@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { BASE } from './planetRenderer'
 import {
   type CelestialBody,
   SUN,
@@ -140,7 +141,7 @@ export class SolarRenderer {
 
     // Load the milky way texture
     const textureLoader = new THREE.TextureLoader()
-    const texture = textureLoader.load('/textures/8k_stars_milky_way.jpg')
+    const texture = textureLoader.load(`${BASE}textures/8k_stars_milky_way.jpg`)
     texture.colorSpace = THREE.SRGBColorSpace
 
     const material = new THREE.MeshBasicMaterial({

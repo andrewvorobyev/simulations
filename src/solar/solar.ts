@@ -2,6 +2,8 @@ import { SolarRenderer } from './renderer3d'
 import { PLANETS } from './solarSystem'
 import './solar.css'
 
+const BASE = import.meta.env.BASE_URL
+
 interface SolarSettings {
   speedFactor: number
   showOrbits: boolean
@@ -93,9 +95,9 @@ class SolarApp {
             <button id="btn-reset">Reset Time</button>
             <span class="time-display" id="time-display">Day: 0</span>
             <span class="fps-display" id="fps-display">-- FPS</span>
-            <a href="/" class="back-link">Home</a>
-            <a href="/cellular-automata" class="back-link">← 1D</a>
-            <a href="/life" class="back-link">Life →</a>
+            <a href="${BASE}" class="back-link">Home</a>
+            <a href="${BASE}cellular-automata" class="back-link">← 1D</a>
+            <a href="${BASE}life" class="back-link">Life →</a>
           </div>
         </div>
         <div class="solar-canvas" id="canvas-container"></div>

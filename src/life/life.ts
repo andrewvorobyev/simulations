@@ -2,6 +2,8 @@ import { GameOfLife } from './gameOfLife'
 import { Renderer3D } from './renderer3d'
 import './life.css'
 
+const BASE = import.meta.env.BASE_URL
+
 class LifeApp {
   private game: GameOfLife | null = null
   private renderer: Renderer3D | null = null
@@ -80,9 +82,9 @@ class LifeApp {
             <button id="btn-step">Step</button>
             <button id="btn-reset">Reset</button>
             <button id="btn-apply">Apply Settings</button>
-            <a href="/" class="back-link">Home</a>
-            <a href="/cellular-automata" class="back-link">← 1D</a>
-            <a href="/solar" class="back-link">Solar →</a>
+            <a href="${BASE}" class="back-link">Home</a>
+            <a href="${BASE}cellular-automata" class="back-link">← 1D</a>
+            <a href="${BASE}solar" class="back-link">Solar →</a>
           </div>
           <div class="info" id="info">
             Generation: 0 | Cells: ${this.x}×${this.y}×${this.z}
