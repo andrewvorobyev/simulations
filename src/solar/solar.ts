@@ -29,7 +29,7 @@ function loadSettings(): SolarSettings {
 
 function getDefaultSettings(): SolarSettings {
   return {
-    speedFactor: 10,
+    speedFactor: 0.1,
     showOrbits: true,
     showLabels: true,
     showAxes: false,
