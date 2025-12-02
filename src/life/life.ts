@@ -80,7 +80,8 @@ class LifeApp {
             <button id="btn-step">Step</button>
             <button id="btn-reset">Reset</button>
             <button id="btn-apply">Apply Settings</button>
-            <a href="/" class="back-link">← 1D</a>
+            <a href="/" class="back-link">Home</a>
+            <a href="/cellular-automata" class="back-link">← 1D</a>
             <a href="/solar" class="back-link">Solar →</a>
           </div>
           <div class="info" id="info">

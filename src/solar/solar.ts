@@ -93,7 +93,8 @@ class SolarApp {
             <button id="btn-reset">Reset Time</button>
             <span class="time-display" id="time-display">Day: 0</span>
             <span class="fps-display" id="fps-display">-- FPS</span>
-            <a href="/" class="back-link">← 1D</a>
+            <a href="/" class="back-link">Home</a>
+            <a href="/cellular-automata" class="back-link">← 1D</a>
             <a href="/life" class="back-link">Life →</a>
           </div>
         </div>

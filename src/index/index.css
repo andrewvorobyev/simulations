@@ -1,0 +1,131 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-tertiary: #252542;
+  --accent: #e94560;
+  --accent-hover: #ff6b8a;
+  --text-primary: #eee;
+  --text-secondary: #aaa;
+  --border: #333;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.index-container {
+  max-width: 900px;
+  width: 100%;
+}
+
+.index-header {
+  text-align: center;
+  margin-bottom: 60px;
+}
+
+.index-header h1 {
+  font-size: 3rem;
+  font-weight: 300;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, var(--accent), #ffa500, var(--accent-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.index-header p {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.simulation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+}
+
+.simulation-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.simulation-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 32px rgba(233, 69, 96, 0.15);
+}
+
+.simulation-card h2 {
+  font-size: 1.4rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.simulation-card p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.simulation-card .card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.simulation-card .tag {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  color: var(--text-secondary);
+}
+
+.simulation-card .arrow {
+  color: var(--accent);
+  font-size: 1.2rem;
+  transition: transform 0.2s;
+}
+
+.simulation-card:hover .arrow {
+  transform: translateX(4px);
+}
+
+@media (max-width: 600px) {
+  .index-header h1 {
+    font-size: 2rem;
+  }
+
+  .simulation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .simulation-card {
+    padding: 20px;
+  }
+}
