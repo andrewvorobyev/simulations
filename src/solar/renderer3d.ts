@@ -9,31 +9,31 @@ import {
   getRotationAngle,
 } from './solarSystem'
 import {
-  createParticlePlanet,
+  createPlanetMesh,
   createParticleSun,
-  createParticleMoon,
+  createMoonMesh,
   createRingParticles,
   updateSunCorona,
   updateRingParticles,
   type RingParticleData,
+  type PlanetMeshData,
 } from './planetRenderer'
-
-const RING_PARTICLE_COUNT = 8000
 
 interface PlanetData {
   body: CelestialBody
-  particles: THREE.Points
+  mesh: THREE.Mesh
+  meshData: PlanetMeshData
   orbitLine?: THREE.Line
   axisLine?: THREE.Line
   moons: MoonData[]
   ringData?: RingParticleData
-  moonOrbitScale: (semiMajorAxis: number) => number // converts moon km to display units
-  moonPeriodScale: number // factor to scale all moon periods (preserves relative speeds)
+  moonOrbitScale: (semiMajorAxis: number) => number
+  moonPeriodScale: number
 }
 
 interface MoonData {
   body: CelestialBody
-  particles: THREE.Points
+  mesh: THREE.Mesh
   orbitLine?: THREE.Line
 }
 
@@ -70,6 +70,11 @@ export class SolarRenderer {
   private labels: Map<string, HTMLDivElement> = new Map()
   private container: HTMLElement
 
+  // FPS tracking
+  private fps = 0
+  private frameCount = 0
+  private fpsTime = 0
+
   constructor(container: HTMLElement) {
     this.container = container
 
@@ -105,8 +110,8 @@ export class SolarRenderer {
     this.controls.rotateSpeed = 1.0
     this.controls.panSpeed = 2.0
 
-    // Ambient light (dim for particle visibility)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.1)
+    // Ambient light for base visibility
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.15)
     this.scene.add(ambientLight)
 
     // Handle resize
@@ -169,8 +174,8 @@ export class SolarRenderer {
     this.scene.add(this.sunData.core)
     this.scene.add(this.sunData.corona)
 
-    // Sun light
-    this.sunLight = new THREE.PointLight(0xffffff, 2, 0, 0.1)
+    // Sun light - bright point light with no decay for distant planets
+    this.sunLight = new THREE.PointLight(0xffffff, 3, 0, 0)
     this.sunLight.position.set(0, 0, 0)
     this.scene.add(this.sunLight)
 
@@ -189,15 +194,13 @@ export class SolarRenderer {
 
   private createPlanet(body: CelestialBody): void {
     const radius = Math.max(body.radius * SCALE.PLANET_SCALE, 0.5)
-    const planetParticles = createParticlePlanet(body, radius)
+    const planetMeshData = createPlanetMesh(body, radius)
 
     // Set rotation order so tilt (Z) is applied first, then spin (Y)
-    // 'ZXY' order: first Z (tilt), then X (0), then Y (spin)
-    // This makes bands perpendicular to the tilted rotation axis
-    planetParticles.mesh.rotation.order = 'ZXY'
-    planetParticles.mesh.rotation.z = (body.axialTilt * Math.PI) / 180
+    planetMeshData.mesh.rotation.order = 'ZXY'
+    planetMeshData.mesh.rotation.z = (body.axialTilt * Math.PI) / 180
 
-    this.scene.add(planetParticles.mesh)
+    this.scene.add(planetMeshData.mesh)
 
     // Create orbit line
     const orbitLine = this.createOrbitLine(body, SCALE.AU_TO_UNITS)
@@ -218,16 +221,13 @@ export class SolarRenderer {
         innerRadius,
         outerRadius,
         body.ringColor || 0xc9b896,
-        RING_PARTICLE_COUNT
+        SCALE.RING_PARTICLES
       )
       this.scene.add(ringData.mesh)
     }
 
     // Calculate moon orbit scale function for this planet
-    // Maps moon distances to fit within MOON_ORBIT_MIN to MOON_ORBIT_MAX * planet radius
     let moonOrbitScale: (semiMajorAxis: number) => number = () => 0
-    // Period scale factor preserves relative angular speeds between moons
-    // The fastest moon gets scaled to MOON_PERIOD_MIN, others scaled proportionally
     let moonPeriodScale = 1
 
     if (body.moons && body.moons.length > 0) {
@@ -238,18 +238,15 @@ export class SolarRenderer {
       const maxOrbit = radius * SCALE.MOON_ORBIT_MAX
 
       if (maxDist === minDist) {
-        // Single moon or all at same distance - place at middle of range
         const midOrbit = (minOrbit + maxOrbit) / 2
         moonOrbitScale = () => midOrbit
       } else {
-        // Scale proportionally
         moonOrbitScale = (semiMajorAxis: number) => {
           const t = (semiMajorAxis - minDist) / (maxDist - minDist)
           return minOrbit + t * (maxOrbit - minOrbit)
         }
       }
 
-      // Calculate period scale to slow down fast moons while preserving ratios
       const moonPeriods = body.moons.map((m) => Math.abs(m.orbitalPeriod))
       const fastestPeriod = Math.min(...moonPeriods)
       if (fastestPeriod < SCALE.MOON_PERIOD_MIN) {
@@ -268,11 +265,12 @@ export class SolarRenderer {
     }
 
     // Create label
-    this.createLabel(body.name, planetParticles.mesh.position.clone())
+    this.createLabel(body.name, planetMeshData.mesh.position.clone())
 
     this.planets.push({
       body,
-      particles: planetParticles.mesh,
+      mesh: planetMeshData.mesh,
+      meshData: planetMeshData,
       orbitLine,
       axisLine,
       moons,
@@ -287,16 +285,15 @@ export class SolarRenderer {
     orbitScale: (semiMajorAxis: number) => number
   ): MoonData {
     const radius = Math.max(body.radius * SCALE.MOON_SCALE, 0.8)
-    const particles = createParticleMoon(body, radius)
-    // Set rotation order for consistency
-    particles.rotation.order = 'YXZ'
-    this.scene.add(particles)
+    const mesh = createMoonMesh(body, radius)
+    mesh.rotation.order = 'YXZ'
+    this.scene.add(mesh)
 
     // Create orbit line using the planet-specific orbit scale
     const orbitLine = this.createMoonOrbitLine(body, orbitScale)
     this.scene.add(orbitLine)
 
-    return { body, particles, orbitLine }
+    return { body, mesh, orbitLine }
   }
 
   private createMoonOrbitLine(
@@ -418,7 +415,7 @@ export class SolarRenderer {
     for (const planet of this.planets) {
       const label = this.labels.get(planet.body.name)
       if (label) {
-        const pos = planet.particles.position.clone()
+        const pos = planet.mesh.position.clone()
         const radius = Math.max(planet.body.radius * SCALE.PLANET_SCALE, 0.5)
         pos.y += radius + 1
         this.updateLabelPosition(label, pos)
@@ -456,6 +453,15 @@ export class SolarRenderer {
     const deltaTime = (currentTime - this.lastTime) / 1000
     this.lastTime = currentTime
 
+    // FPS tracking
+    this.frameCount++
+    this.fpsTime += deltaTime
+    if (this.fpsTime >= 1) {
+      this.fps = this.frameCount / this.fpsTime
+      this.frameCount = 0
+      this.fpsTime = 0
+    }
+
     this.time += deltaTime * this.speedFactor
 
     this.updatePositions(deltaTime)
@@ -471,7 +477,7 @@ export class SolarRenderer {
   private updatePositions(deltaTime: number): void {
     // Update Sun corona animation
     if (this.sunData) {
-      updateSunCorona(this.sunData, this.sunRadius, deltaTime * 10)
+      updateSunCorona(this.sunData, this.sunRadius, deltaTime * 10, SCALE.SUN_CORONA_EXTENT)
       this.sunData.core.rotation.y = getRotationAngle(SUN, this.time)
     }
 
@@ -479,15 +485,15 @@ export class SolarRenderer {
     for (const planet of this.planets) {
       // Update planet position
       const pos = getOrbitalPosition(planet.body, this.time, SCALE.AU_TO_UNITS)
-      planet.particles.position.set(pos.x, pos.z, pos.y)
+      planet.mesh.position.set(pos.x, pos.z, pos.y)
 
       // Update planet rotation
       const rotAngle = getRotationAngle(planet.body, this.time)
-      planet.particles.rotation.y = rotAngle
+      planet.mesh.rotation.y = rotAngle
 
       // Update axis line position
       if (planet.axisLine) {
-        planet.axisLine.position.copy(planet.particles.position)
+        planet.axisLine.position.copy(planet.mesh.position)
       }
 
       // Update rings
@@ -505,7 +511,7 @@ export class SolarRenderer {
 
         // Position and tilt rings with planet
         const tiltRad = (planet.body.axialTilt * Math.PI) / 180
-        planet.ringData.mesh.position.copy(planet.particles.position)
+        planet.ringData.mesh.position.copy(planet.mesh.position)
         planet.ringData.mesh.rotation.set(0, 0, tiltRad)
       }
 
@@ -515,34 +521,29 @@ export class SolarRenderer {
       const sinTilt = Math.sin(tiltRad)
 
       for (const moon of planet.moons) {
-        // Calculate moon position using scaled orbit and scaled period
         const scaledRadius = planet.moonOrbitScale(moon.body.semiMajorAxis)
-        // Apply per-planet period scale (preserves relative angular speeds)
-        // When trueSpeed is enabled, use real periods; otherwise use scaled periods
         const period = this.trueSpeed
           ? Math.abs(moon.body.orbitalPeriod)
           : Math.abs(moon.body.orbitalPeriod) * planet.moonPeriodScale
         const angle = ((2 * Math.PI * this.time) / period) % (2 * Math.PI)
 
-        // Simple circular orbit in XZ plane
         const localX = scaledRadius * Math.cos(angle)
         const localY = 0
         const localZ = scaledRadius * Math.sin(angle)
 
-        // Apply planet's axial tilt
         const tiltedX = localX * cosTilt - localY * sinTilt
         const tiltedY = localX * sinTilt + localY * cosTilt
         const tiltedZ = localZ
 
-        moon.particles.position.set(
-          planet.particles.position.x + tiltedX,
-          planet.particles.position.y + tiltedY,
-          planet.particles.position.z + tiltedZ
+        moon.mesh.position.set(
+          planet.mesh.position.x + tiltedX,
+          planet.mesh.position.y + tiltedY,
+          planet.mesh.position.z + tiltedZ
         )
-        moon.particles.rotation.y = getRotationAngle(moon.body, this.time)
+        moon.mesh.rotation.y = getRotationAngle(moon.body, this.time)
 
         if (moon.orbitLine) {
-          moon.orbitLine.position.copy(planet.particles.position)
+          moon.orbitLine.position.copy(planet.mesh.position)
           moon.orbitLine.rotation.set(0, 0, tiltRad)
         }
       }
@@ -559,7 +560,7 @@ export class SolarRenderer {
     } else {
       const planet = this.planets.find((p) => p.body.name === this.followTarget)
       if (planet) {
-        targetPos = planet.particles.position.clone()
+        targetPos = planet.mesh.position.clone()
       }
     }
 
@@ -623,6 +624,10 @@ export class SolarRenderer {
     this.time = time
   }
 
+  getFps(): number {
+    return this.fps
+  }
+
   setFollowTarget(name: string | null): void {
     this.followTarget = name
 
@@ -643,10 +648,10 @@ export class SolarRenderer {
     } else {
       const planet = this.planets.find((p) => p.body.name === name)
       if (planet) {
-        this.controls.target.copy(planet.particles.position)
+        this.controls.target.copy(planet.mesh.position)
         const radius = planet.body.radius * SCALE.PLANET_SCALE
         const distance = Math.max(radius * 8, 5)
-        this.camera.position.copy(planet.particles.position)
+        this.camera.position.copy(planet.mesh.position)
         this.camera.position.x += distance
         this.camera.position.y += distance * 0.5
         this.camera.position.z += distance

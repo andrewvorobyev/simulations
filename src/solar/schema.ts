@@ -61,11 +61,15 @@ export const ScaleSchema = z.object({
   AU_TO_UNITS: z.number(), // 1 AU = this many display units
   PLANET_SCALE: z.number(), // km to units for planet radii
   SUN_SCALE: z.number(), // km to units for sun radius
+  SUN_CORONA_EXTENT: z.number().default(1.8), // corona max extent as multiple of sun radius
   MOON_SCALE: z.number(), // km to units for moon radii
   MOON_ORBIT_MIN: z.number().default(1.5), // closest moon orbit as multiple of planet radius
   MOON_ORBIT_MAX: z.number().default(5.0), // farthest moon orbit as multiple of planet radius
   MOON_DISPLAY_LIMIT: z.number().default(10), // max moons to display per planet
   MOON_PERIOD_MIN: z.number().default(3.0), // minimum display period for fastest moon (days)
+  // Particle counts for rendering
+  SUN_CORONA_PARTICLES: z.number().default(25000),
+  RING_PARTICLES: z.number().default(20000),
 })
 
 // Complete solar system data schema

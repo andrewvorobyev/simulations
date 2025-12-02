@@ -82,6 +82,12 @@
   background: #ffb833;
 }
 
+.nav-btn {
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+  min-width: 28px;
+}
+
 .time-display {
   font-family: monospace;
   font-size: 13px;
@@ -89,6 +95,16 @@
   padding: 4px 10px;
   background: rgba(255, 165, 0, 0.1);
   border-radius: 4px;
+}
+
+.fps-display {
+  font-family: monospace;
+  font-size: 13px;
+  color: #4a9;
+  padding: 4px 10px;
+  background: rgba(68, 170, 153, 0.1);
+  border-radius: 4px;
+  min-width: 60px;
 }
 
 #speed-display {

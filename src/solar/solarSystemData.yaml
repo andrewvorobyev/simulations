@@ -4,7 +4,8 @@
 scale:
   AU_TO_UNITS: 100          # 1 AU = 100 display units
   PLANET_SCALE: 0.0005      # km to units for planet radii
-  SUN_SCALE: 0.00003        # Sun smaller to not overlap Mercury (696340 * 0.00003 = 20.9 < 38.7 units)
+  SUN_SCALE: 0.00003        # Sun smaller to not overlap Mercury (696340 * 0.00003 = 20.9 units)
+  SUN_CORONA_EXTENT: 1.25   # corona max extent (20.9 * 1.25 = 26 < Mercury at 38.7 units)
   MOON_SCALE: 0.001         # km to units for moon radii
   # Moon orbits are scaled to fit within min-max range relative to planet radius
   # MOON_ORBIT_MIN must be > max ring outerRadius (2.5) to keep moons outside rings
@@ -14,6 +15,9 @@ scale:
   # Moon orbital speeds are scaled per planet to preserve relative angular velocities
   # The fastest moon of each planet will have this minimum period (days)
   MOON_PERIOD_MIN: 3.0      # minimum period for fastest moon display
+  # Particle counts for rendering quality
+  SUN_CORONA_PARTICLES: 25000
+  RING_PARTICLES: 12000
 
 sun:
   name: Sun

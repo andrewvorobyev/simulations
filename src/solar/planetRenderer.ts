@@ -1,24 +1,29 @@
 import * as THREE from 'three'
-import type { CelestialBody } from './solarSystem'
+import { type CelestialBody, SCALE } from './solarSystem'
 
-// Particle counts for different object types
-const PLANET_PARTICLE_COUNT = 8000
-const SUN_PARTICLE_COUNT = 20000
-const SUN_CORONA_COUNT = 8000
-
-interface PlanetParticleData {
-  mesh: THREE.Points
-  positions: Float32Array
-  basePositions: Float32Array // Original positions for animation
-  colors: Float32Array
+// Planet mesh data structure
+export interface PlanetMeshData {
+  mesh: THREE.Mesh
+  texture: THREE.Texture
+  bumpMap: THREE.Texture | null
 }
 
+// Sun data structure - textured sphere with particle corona
 interface SunParticleData {
-  core: THREE.Points
-  corona: THREE.Points
-  corePositions: Float32Array
+  core: THREE.Mesh // Textured sphere
+  corona: THREE.Points // Particle corona
   coronaPositions: Float32Array
   coronaVelocities: Float32Array
+}
+
+// Ring particle data structure
+export interface RingParticleData {
+  mesh: THREE.Points
+  positions: Float32Array
+  velocities: Float32Array
+  baseY: Float32Array
+  phases: Float32Array
+  planetRadius: number
 }
 
 // Color palettes for different planet types
@@ -31,7 +36,6 @@ const PLANET_PALETTES: Record<string, { bands: number[]; weights: number[] }> = 
     bands: [0xe6c87a, 0xd4b56a, 0xf0d890, 0xc9a85a],
     weights: [0.3, 0.3, 0.2, 0.2],
   },
-  // Earth uses special continent mapping, this is fallback
   Earth: {
     bands: [0x6b93d6, 0x4a7bc4, 0x8eb4e6, 0x3d6baa],
     weights: [0.4, 0.3, 0.2, 0.1],
@@ -59,128 +63,131 @@ const PLANET_PALETTES: Record<string, { bands: number[]; weights: number[] }> = 
 }
 
 // Earth colors
-const EARTH_OCEAN = new THREE.Color(0x1a5f8a)
-const EARTH_OCEAN_DEEP = new THREE.Color(0x0d3d5c)
-const EARTH_LAND = new THREE.Color(0x2d5a27)
-const EARTH_LAND_LIGHT = new THREE.Color(0x4a7c40)
-const EARTH_DESERT = new THREE.Color(0xc9b896)
-const EARTH_ICE = new THREE.Color(0xf0f5f5)
-const EARTH_FOREST = new THREE.Color(0x1a4d1a)
+const EARTH_OCEAN = { r: 0x1a / 255, g: 0x5f / 255, b: 0x8a / 255 }
+const EARTH_OCEAN_DEEP = { r: 0x0d / 255, g: 0x3d / 255, b: 0x5c / 255 }
+const EARTH_LAND = { r: 0x2d / 255, g: 0x5a / 255, b: 0x27 / 255 }
+const EARTH_LAND_LIGHT = { r: 0x4a / 255, g: 0x7c / 255, b: 0x40 / 255 }
+const EARTH_DESERT = { r: 0xc9 / 255, g: 0xb8 / 255, b: 0x96 / 255 }
+const EARTH_ICE = { r: 0xf0 / 255, g: 0xf5 / 255, b: 0xf5 / 255 }
+const EARTH_FOREST = { r: 0x1a / 255, g: 0x4d / 255, b: 0x1a / 255 }
+
+// Seeded random for consistent texture generation
+function seededRandom(seed: number): () => number {
+  return () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff
+    return seed / 0x7fffffff
+  }
+}
 
 // Simplified continent map - returns true if point is likely land
-// lat: -1 to 1 (south to north), lon: 0 to 2PI
-function isEarthLand(lat: number, lon: number): boolean {
-  // Normalize longitude to 0-1
+function isEarthLand(lat: number, lon: number, rand: () => number): boolean {
   const lonNorm = lon / (Math.PI * 2)
 
-  // Polar ice caps
-  if (Math.abs(lat) > 0.85) return Math.random() > 0.3
+  if (Math.abs(lat) > 0.85) return rand() > 0.3
+  if (lat < -0.75) return rand() > 0.4
 
-  // Antarctica
-  if (lat < -0.75) return Math.random() > 0.4
-
-  // North America (lon ~0.65-0.85)
+  // North America
   if (lat > 0.15 && lat < 0.75 && lonNorm > 0.6 && lonNorm < 0.9) {
-    if (lat > 0.55) return Math.random() > 0.3 // Canada
-    return Math.random() > 0.35 // USA/Mexico
+    if (lat > 0.55) return rand() > 0.3
+    return rand() > 0.35
   }
 
-  // South America (lon ~0.7-0.85)
+  // South America
   if (lat > -0.6 && lat < 0.15 && lonNorm > 0.65 && lonNorm < 0.85) {
-    return Math.random() > 0.4
+    return rand() > 0.4
   }
 
-  // Europe (lon ~0.0-0.15)
+  // Europe
   if (lat > 0.35 && lat < 0.7 && lonNorm < 0.15) {
-    return Math.random() > 0.45
+    return rand() > 0.45
   }
 
-  // Africa (lon ~0.0-0.2)
+  // Africa
   if (lat > -0.4 && lat < 0.4 && lonNorm < 0.25 && lonNorm > 0.85) {
-    return Math.random() > 0.35
+    return rand() > 0.35
   }
   if (lat > -0.4 && lat < 0.4 && lonNorm < 0.2) {
-    return Math.random() > 0.35
+    return rand() > 0.35
   }
 
-  // Asia (lon ~0.1-0.45)
+  // Asia
   if (lat > 0.1 && lat < 0.75 && lonNorm > 0.1 && lonNorm < 0.5) {
-    if (lat > 0.5) return Math.random() > 0.3 // Siberia
-    return Math.random() > 0.4
+    if (lat > 0.5) return rand() > 0.3
+    return rand() > 0.4
   }
 
-  // Australia (lon ~0.35-0.45)
+  // Australia
   if (lat > -0.45 && lat < -0.1 && lonNorm > 0.35 && lonNorm < 0.5) {
-    return Math.random() > 0.45
+    return rand() > 0.45
   }
 
-  // Ocean
   return false
 }
 
 // Get Earth color based on lat/lon
-function getEarthColor(lat: number, lon: number): THREE.Color {
-  const noise = (Math.random() - 0.5) * 0.1
+function getEarthColor(
+  lat: number,
+  lon: number,
+  rand: () => number
+): { r: number; g: number; b: number } {
+  const noise = (rand() - 0.5) * 0.1
 
   // Ice caps
   if (Math.abs(lat) > 0.82) {
-    const ice = EARTH_ICE.clone()
-    ice.r = Math.max(0, Math.min(1, ice.r + noise))
-    ice.g = Math.max(0, Math.min(1, ice.g + noise))
-    ice.b = Math.max(0, Math.min(1, ice.b + noise))
-    return ice
+    return {
+      r: Math.max(0, Math.min(1, EARTH_ICE.r + noise)),
+      g: Math.max(0, Math.min(1, EARTH_ICE.g + noise)),
+      b: Math.max(0, Math.min(1, EARTH_ICE.b + noise)),
+    }
   }
 
   // Land or water
-  if (isEarthLand(lat, lon)) {
-    // Land color varies by latitude
-    let landColor: THREE.Color
+  if (isEarthLand(lat, lon, rand)) {
+    let landColor: { r: number; g: number; b: number }
     if (Math.abs(lat) > 0.6) {
-      // Tundra/taiga
-      landColor = EARTH_FOREST.clone()
+      landColor = { ...EARTH_FOREST }
     } else if (Math.abs(lat) < 0.25) {
-      // Tropical - mix of forest and desert
-      if (Math.random() > 0.6) {
-        landColor = EARTH_DESERT.clone()
+      if (rand() > 0.6) {
+        landColor = { ...EARTH_DESERT }
       } else {
-        landColor = EARTH_FOREST.clone()
+        landColor = { ...EARTH_FOREST }
       }
     } else {
-      // Temperate
-      landColor = Math.random() > 0.5 ? EARTH_LAND.clone() : EARTH_LAND_LIGHT.clone()
+      landColor = rand() > 0.5 ? { ...EARTH_LAND } : { ...EARTH_LAND_LIGHT }
     }
-    landColor.r = Math.max(0, Math.min(1, landColor.r + noise))
-    landColor.g = Math.max(0, Math.min(1, landColor.g + noise))
-    landColor.b = Math.max(0, Math.min(1, landColor.b + noise))
-    return landColor
+    return {
+      r: Math.max(0, Math.min(1, landColor.r + noise)),
+      g: Math.max(0, Math.min(1, landColor.g + noise)),
+      b: Math.max(0, Math.min(1, landColor.b + noise)),
+    }
   }
 
-  // Ocean - deeper in center
-  const oceanColor = Math.random() > 0.3 ? EARTH_OCEAN.clone() : EARTH_OCEAN_DEEP.clone()
-  oceanColor.r = Math.max(0, Math.min(1, oceanColor.r + noise))
-  oceanColor.g = Math.max(0, Math.min(1, oceanColor.g + noise))
-  oceanColor.b = Math.max(0, Math.min(1, oceanColor.b + noise))
-  return oceanColor
+  const oceanColor = rand() > 0.3 ? { ...EARTH_OCEAN } : { ...EARTH_OCEAN_DEEP }
+  return {
+    r: Math.max(0, Math.min(1, oceanColor.r + noise)),
+    g: Math.max(0, Math.min(1, oceanColor.g + noise)),
+    b: Math.max(0, Math.min(1, oceanColor.b + noise)),
+  }
 }
 
-// Get color from palette based on latitude (for banding effect)
+// Get color from palette based on latitude
 function getColorFromPalette(
   name: string,
   latitude: number,
   longitude: number,
-  defaultColor: number
-): THREE.Color {
-  // Special handling for Earth
+  defaultColor: number,
+  rand: () => number
+): { r: number; g: number; b: number } {
   if (name === 'Earth') {
-    return getEarthColor(latitude, longitude)
+    return getEarthColor(latitude, longitude, rand)
   }
 
   const palette = PLANET_PALETTES[name]
   if (!palette) {
-    return new THREE.Color(defaultColor)
+    const c = new THREE.Color(defaultColor)
+    return { r: c.r, g: c.g, b: c.b }
   }
 
-  // Use latitude to create bands
   const bandIndex = Math.abs(latitude) * palette.bands.length
   const band1 = Math.floor(bandIndex) % palette.bands.length
   const band2 = (band1 + 1) % palette.bands.length
@@ -188,141 +195,161 @@ function getColorFromPalette(
 
   const color1 = new THREE.Color(palette.bands[band1])
   const color2 = new THREE.Color(palette.bands[band2])
-
-  // Add some noise for natural look
-  const noise = (Math.random() - 0.5) * 0.15
   color1.lerp(color2, t)
-  color1.r = Math.max(0, Math.min(1, color1.r + noise))
-  color1.g = Math.max(0, Math.min(1, color1.g + noise))
-  color1.b = Math.max(0, Math.min(1, color1.b + noise))
 
-  return color1
+  const noise = (rand() - 0.5) * 0.15
+  return {
+    r: Math.max(0, Math.min(1, color1.r + noise)),
+    g: Math.max(0, Math.min(1, color1.g + noise)),
+    b: Math.max(0, Math.min(1, color1.b + noise)),
+  }
 }
 
-// Create particle-based planet
-export function createParticlePlanet(
+// Generate planet texture on canvas
+function generatePlanetTexture(
   body: CelestialBody,
-  radius: number
-): PlanetParticleData {
-  const particleCount = PLANET_PARTICLE_COUNT
-  const positions = new Float32Array(particleCount * 3)
-  const basePositions = new Float32Array(particleCount * 3)
-  const colors = new Float32Array(particleCount * 3)
+  width: number,
+  height: number
+): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')!
 
-  // Distribute particles on sphere surface using fibonacci spiral
-  const goldenRatio = (1 + Math.sqrt(5)) / 2
-  const angleIncrement = Math.PI * 2 * goldenRatio
+  const imageData = ctx.createImageData(width, height)
+  const data = imageData.data
 
-  for (let i = 0; i < particleCount; i++) {
-    // Fibonacci sphere distribution
-    const t = i / particleCount
-    const inclination = Math.acos(1 - 2 * t)
-    const azimuth = angleIncrement * i
+  // Use body name as seed for consistent textures
+  const seed = body.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+  const rand = seededRandom(seed)
 
-    // Slight radius variation for texture
-    const r = radius * (0.95 + Math.random() * 0.1)
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      // Convert pixel to lat/lon
+      const u = x / width
+      const v = y / height
+      const lon = u * Math.PI * 2
+      const lat = 1 - v * 2 // -1 to 1, poles at top/bottom
 
-    const x = r * Math.sin(inclination) * Math.cos(azimuth)
-    const y = r * Math.cos(inclination)
-    const z = r * Math.sin(inclination) * Math.sin(azimuth)
+      const color = getColorFromPalette(body.name, lat, lon, body.color, rand)
 
-    positions[i * 3] = x
-    positions[i * 3 + 1] = y
-    positions[i * 3 + 2] = z
-
-    basePositions[i * 3] = x
-    basePositions[i * 3 + 1] = y
-    basePositions[i * 3 + 2] = z
-
-    // Color based on latitude and longitude
-    const latitude = y / r
-    const longitude = azimuth % (Math.PI * 2)
-    const color = getColorFromPalette(body.name, latitude, longitude, body.color)
-
-    colors[i * 3] = color.r
-    colors[i * 3 + 1] = color.g
-    colors[i * 3 + 2] = color.b
+      const idx = (y * width + x) * 4
+      data[idx] = Math.floor(color.r * 255)
+      data[idx + 1] = Math.floor(color.g * 255)
+      data[idx + 2] = Math.floor(color.b * 255)
+      data[idx + 3] = 255
+    }
   }
 
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-
-  // Particle size based on planet radius
-  const particleSize = Math.max(0.1, radius * 0.08)
-
-  const material = new THREE.PointsMaterial({
-    size: particleSize,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.9,
-    sizeAttenuation: true,
-  })
-
-  const mesh = new THREE.Points(geometry, material)
-
-  return { mesh, positions, basePositions, colors }
+  ctx.putImageData(imageData, 0, 0)
+  return canvas
 }
 
-// Create particle-based sun with corona
-export function createParticleSun(radius: number): SunParticleData {
-  // Core particles
-  const corePositions = new Float32Array(SUN_PARTICLE_COUNT * 3)
-  const coreColors = new Float32Array(SUN_PARTICLE_COUNT * 3)
+// Texture file mapping for planets
+const PLANET_TEXTURES: Record<string, string> = {
+  Mercury: '/textures/2k_mercury.jpg',
+  Venus: '/textures/2k_venus_surface.jpg',
+  Earth: '/textures/2k_earth.jpg',
+  Mars: '/textures/2k_mars.jpg',
+  Jupiter: '/textures/2k_jupiter.jpg',
+  Saturn: '/textures/2k_saturn.jpg',
+  Uranus: '/textures/2k_uranus.jpg',
+  Neptune: '/textures/2k_neptune.jpg',
+}
 
-  for (let i = 0; i < SUN_PARTICLE_COUNT; i++) {
-    // Sphere distribution
-    const theta = Math.random() * Math.PI * 2
-    const phi = Math.acos(2 * Math.random() - 1)
-    const r = radius * (0.8 + Math.random() * 0.2)
+// Shared texture loader
+const textureLoader = new THREE.TextureLoader()
 
-    corePositions[i * 3] = r * Math.sin(phi) * Math.cos(theta)
-    corePositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
-    corePositions[i * 3 + 2] = r * Math.cos(phi)
+// Create textured sphere planet using real textures
+export function createPlanetMesh(body: CelestialBody, radius: number): PlanetMeshData {
+  const segments = 64
+  const geometry = new THREE.SphereGeometry(radius, segments, segments)
 
-    // Sun colors - yellow to orange to white
-    const colorT = Math.random()
-    const color = new THREE.Color()
-    if (colorT < 0.3) {
-      color.setHex(0xffffff) // White hot
-    } else if (colorT < 0.6) {
-      color.setHex(0xffff66) // Yellow
-    } else if (colorT < 0.85) {
-      color.setHex(0xffaa33) // Orange
-    } else {
-      color.setHex(0xff6600) // Deep orange
-    }
+  // Load real texture from file
+  const textureUrl = PLANET_TEXTURES[body.name]
+  let texture: THREE.Texture
 
-    coreColors[i * 3] = color.r
-    coreColors[i * 3 + 1] = color.g
-    coreColors[i * 3 + 2] = color.b
+  if (textureUrl) {
+    texture = textureLoader.load(textureUrl)
+    texture.colorSpace = THREE.SRGBColorSpace
+  } else {
+    // Fallback to procedural texture for unknown planets
+    const textureCanvas = generatePlanetTexture(body, 2048, 1024)
+    texture = new THREE.CanvasTexture(textureCanvas)
   }
 
-  const coreGeometry = new THREE.BufferGeometry()
-  coreGeometry.setAttribute('position', new THREE.BufferAttribute(corePositions, 3))
-  coreGeometry.setAttribute('color', new THREE.BufferAttribute(coreColors, 3))
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.ClampToEdgeWrapping
 
-  const coreMaterial = new THREE.PointsMaterial({
-    size: radius * 0.06,
-    vertexColors: true,
-    transparent: true,
-    opacity: 1.0,
-    sizeAttenuation: true,
-    blending: THREE.AdditiveBlending,
+  // Determine material properties based on planet type
+  const isGasGiant = ['Jupiter', 'Saturn', 'Uranus', 'Neptune'].includes(body.name)
+
+  const material = new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: isGasGiant ? 0.7 : 0.9,
+    metalness: 0.0,
   })
 
-  const core = new THREE.Points(coreGeometry, coreMaterial)
+  const mesh = new THREE.Mesh(geometry, material)
 
-  // Corona particles - extend outward
-  const coronaPositions = new Float32Array(SUN_CORONA_COUNT * 3)
-  const coronaColors = new Float32Array(SUN_CORONA_COUNT * 3)
-  const coronaVelocities = new Float32Array(SUN_CORONA_COUNT * 3)
+  return { mesh, texture, bumpMap: null }
+}
 
-  for (let i = 0; i < SUN_CORONA_COUNT; i++) {
+// Cached moon texture (shared across all moons)
+let cachedMoonTexture: THREE.Texture | null = null
+
+// Create textured sphere moon using real texture with color tinting
+export function createMoonMesh(body: CelestialBody, radius: number): THREE.Mesh {
+  const segments = 32
+  const geometry = new THREE.SphereGeometry(radius, segments, segments)
+
+  // Load moon texture (cached)
+  if (!cachedMoonTexture) {
+    cachedMoonTexture = textureLoader.load('/textures/2k_moon.jpg')
+    cachedMoonTexture.colorSpace = THREE.SRGBColorSpace
+  }
+
+  // Apply subtle color tint based on moon's color to distinguish moons
+  const tintColor = new THREE.Color(body.color)
+  // Blend toward gray to keep it subtle
+  tintColor.lerp(new THREE.Color(0x888888), 0.6)
+
+  const material = new THREE.MeshStandardMaterial({
+    map: cachedMoonTexture,
+    color: tintColor,
+    roughness: 0.95,
+    metalness: 0.0,
+  })
+
+  return new THREE.Mesh(geometry, material)
+}
+
+// Create textured sun sphere with particle corona
+export function createParticleSun(radius: number): SunParticleData {
+  // Create textured sphere for sun core
+  const geometry = new THREE.SphereGeometry(radius, 64, 64)
+  const sunTexture = textureLoader.load('/textures/2k_sun.jpg')
+  sunTexture.colorSpace = THREE.SRGBColorSpace
+
+  const coreMaterial = new THREE.MeshBasicMaterial({
+    map: sunTexture,
+    // Emissive glow effect
+  })
+
+  const core = new THREE.Mesh(geometry, coreMaterial)
+  core.renderOrder = 1 // Render core first
+
+  // Corona particles - smaller extent to not overlap Mercury
+  const coronaParticles = SCALE.SUN_CORONA_PARTICLES
+  const coronaPositions = new Float32Array(coronaParticles * 3)
+  const coronaColors = new Float32Array(coronaParticles * 3)
+  const coronaVelocities = new Float32Array(coronaParticles * 3)
+
+  for (let i = 0; i < coronaParticles; i++) {
     const theta = Math.random() * Math.PI * 2
     const phi = Math.acos(2 * Math.random() - 1)
-    // Corona extends from surface to 2x radius
-    const r = radius * (1.0 + Math.random() * 1.5)
+    // Reduced corona extent - stays close to sun surface
+    const r = radius * (1.0 + Math.random() * 0.4)
 
     const x = r * Math.sin(phi) * Math.cos(theta)
     const y = r * Math.sin(phi) * Math.sin(theta)
@@ -332,14 +359,13 @@ export function createParticleSun(radius: number): SunParticleData {
     coronaPositions[i * 3 + 1] = y
     coronaPositions[i * 3 + 2] = z
 
-    // Velocity pointing outward
-    const speed = 0.5 + Math.random() * 1.0
+    // Slower outward velocity for tighter corona
+    const speed = 0.2 + Math.random() * 0.3
     coronaVelocities[i * 3] = (x / r) * speed
     coronaVelocities[i * 3 + 1] = (y / r) * speed
     coronaVelocities[i * 3 + 2] = (z / r) * speed
 
-    // Corona is more orange/red, fades with distance
-    const distanceFactor = (r - radius) / (radius * 1.5)
+    const distanceFactor = (r - radius) / (radius * 0.4)
     const color = new THREE.Color()
     color.setHex(0xffaa33)
     color.lerp(new THREE.Color(0xff4400), distanceFactor * 0.5)
@@ -354,33 +380,36 @@ export function createParticleSun(radius: number): SunParticleData {
   coronaGeometry.setAttribute('color', new THREE.BufferAttribute(coronaColors, 3))
 
   const coronaMaterial = new THREE.PointsMaterial({
-    size: radius * 0.1,
+    size: radius * 0.025,
     vertexColors: true,
     transparent: true,
     opacity: 0.6,
     sizeAttenuation: true,
     blending: THREE.AdditiveBlending,
+    depthWrite: false,
   })
 
   const corona = new THREE.Points(coronaGeometry, coronaMaterial)
+  corona.renderOrder = 2 // Render corona after core
 
-  return { core, corona, corePositions, coronaPositions, coronaVelocities }
+  return { core, corona, coronaPositions, coronaVelocities }
 }
 
 // Update sun corona animation
 export function updateSunCorona(
   sunData: SunParticleData,
   radius: number,
-  deltaTime: number
+  deltaTime: number,
+  coronaExtent = 1.3 // Smaller default to not overlap Mercury
 ): void {
   const posAttr = sunData.corona.geometry.attributes.position
   if (!posAttr) return
   const positions = posAttr.array as Float32Array
   const velocities = sunData.coronaVelocities
 
-  for (let i = 0; i < SUN_CORONA_COUNT; i++) {
+  const coronaParticles = SCALE.SUN_CORONA_PARTICLES
+  for (let i = 0; i < coronaParticles; i++) {
     const idx = i * 3
-    // Move particle outward
     let x = positions[idx]! + velocities[idx]! * deltaTime
     let y = positions[idx + 1]! + velocities[idx + 1]! * deltaTime
     let z = positions[idx + 2]! + velocities[idx + 2]! * deltaTime
@@ -388,14 +417,12 @@ export function updateSunCorona(
     positions[idx + 1] = y
     positions[idx + 2] = z
 
-    // Calculate distance from center
     const dist = Math.sqrt(x * x + y * y + z * z)
 
-    // Reset particle if too far
-    if (dist > radius * 2.5) {
+    if (dist > radius * coronaExtent) {
       const theta = Math.random() * Math.PI * 2
       const phi = Math.acos(2 * Math.random() - 1)
-      const r = radius * (1.0 + Math.random() * 0.2)
+      const r = radius * (1.0 + Math.random() * 0.1)
 
       x = r * Math.sin(phi) * Math.cos(theta)
       y = r * Math.sin(phi) * Math.sin(theta)
@@ -404,8 +431,8 @@ export function updateSunCorona(
       positions[idx + 1] = y
       positions[idx + 2] = z
 
-      // New velocity
-      const speed = 0.5 + Math.random() * 1.0
+      // Slower velocity for tighter corona
+      const speed = 0.2 + Math.random() * 0.3
       velocities[idx] = (x / r) * speed
       velocities[idx + 1] = (y / r) * speed
       velocities[idx + 2] = (z / r) * speed
@@ -415,24 +442,17 @@ export function updateSunCorona(
   posAttr.needsUpdate = true
 }
 
-// Ring particle data structure
-export interface RingParticleData {
-  mesh: THREE.Points
-  positions: Float32Array
-  velocities: Float32Array
-  baseY: Float32Array // base Y positions for wiggle
-  phases: Float32Array // random phase offsets for wiggle
-  planetRadius: number
-}
-
-// Create ring particles (enhanced version)
+// Create ring particles - many tiny particles orbiting the planet
 export function createRingParticles(
   planetRadius: number,
   innerRadius: number,
   outerRadius: number,
   ringColor: number,
-  particleCount: number
+  _particleCount: number // ignored, we use a high fixed count
 ): RingParticleData {
+  // Use enough particles for dense rings but keep performance good
+  const particleCount = 50000
+
   const positions = new Float32Array(particleCount * 3)
   const colors = new Float32Array(particleCount * 3)
   const velocities = new Float32Array(particleCount)
@@ -442,53 +462,70 @@ export function createRingParticles(
   const ringWidth = outerRadius - innerRadius
 
   for (let i = 0; i < particleCount; i++) {
-    // Ring band distribution
+    // Ring band distribution - creates Saturn-like ring structure with gaps
     let r: number
     const band = Math.random()
-    if (band < 0.3) {
-      r = innerRadius + Math.random() * ringWidth * 0.25
-    } else if (band < 0.35) {
-      r = innerRadius + ringWidth * 0.25 + Math.random() * ringWidth * 0.05
-    } else if (band < 0.7) {
-      r = innerRadius + ringWidth * 0.3 + Math.random() * ringWidth * 0.35
-    } else if (band < 0.75) {
-      r = innerRadius + ringWidth * 0.65 + Math.random() * ringWidth * 0.05
-    } else if (band < 0.92) {
-      r = innerRadius + ringWidth * 0.7 + Math.random() * ringWidth * 0.2
+    if (band < 0.15) {
+      // Inner C ring - faint
+      r = innerRadius + Math.random() * ringWidth * 0.15
+    } else if (band < 0.18) {
+      // Gap (Colombo gap)
+      r = innerRadius + ringWidth * 0.15 + Math.random() * ringWidth * 0.02
+    } else if (band < 0.45) {
+      // B ring - brightest, densest
+      r = innerRadius + ringWidth * 0.17 + Math.random() * ringWidth * 0.28
+    } else if (band < 0.48) {
+      // Cassini Division - prominent gap
+      r = innerRadius + ringWidth * 0.45 + Math.random() * ringWidth * 0.03
+    } else if (band < 0.85) {
+      // A ring - second brightest
+      r = innerRadius + ringWidth * 0.48 + Math.random() * ringWidth * 0.37
+    } else if (band < 0.87) {
+      // Encke gap
+      r = innerRadius + ringWidth * 0.75 + Math.random() * ringWidth * 0.02
     } else {
-      r = innerRadius + ringWidth * 0.92 + Math.random() * ringWidth * 0.08
+      // F ring and outer material
+      r = innerRadius + ringWidth * 0.87 + Math.random() * ringWidth * 0.13
     }
 
     const angle = Math.random() * Math.PI * 2
-    const y = (Math.random() - 0.5) * planetRadius * 0.02
+    // Very thin rings
+    const y = (Math.random() - 0.5) * planetRadius * 0.005
 
     positions[i * 3] = Math.cos(angle) * r
     positions[i * 3 + 1] = y
     positions[i * 3 + 2] = Math.sin(angle) * r
 
-    // Store base Y for wiggle
     baseY[i] = y
     phases[i] = Math.random() * Math.PI * 2
 
-    // Angular velocity (Kepler)
-    velocities[i] = 0.1 / Math.sqrt(r / innerRadius)
+    // Keplerian orbital velocity - inner particles orbit faster
+    velocities[i] = 0.15 / Math.pow(r / innerRadius, 1.5)
 
-    // Color variation
+    // Color variation based on ring region
     const baseColor = new THREE.Color(ringColor)
     const normalizedR = (r - innerRadius) / ringWidth
 
     let brightness: number
-    if (normalizedR < 0.25) {
-      brightness = 0.6 + Math.random() * 0.2
-      baseColor.lerp(new THREE.Color(0x8b7355), 0.3)
-    } else if (normalizedR < 0.65) {
-      brightness = 0.9 + Math.random() * 0.1
-      baseColor.lerp(new THREE.Color(0xffd700), 0.15)
-    } else if (normalizedR < 0.9) {
-      brightness = 0.75 + Math.random() * 0.2
-    } else {
+    if (normalizedR < 0.17) {
+      // C ring - darker, brownish
+      brightness = 0.4 + Math.random() * 0.15
+      baseColor.lerp(new THREE.Color(0x8b7355), 0.4)
+    } else if (normalizedR < 0.45) {
+      // B ring - bright cream/gold
+      brightness = 0.85 + Math.random() * 0.15
+      baseColor.lerp(new THREE.Color(0xffeedd), 0.2)
+    } else if (normalizedR < 0.48) {
+      // Cassini division - very dark
+      brightness = 0.2 + Math.random() * 0.1
+    } else if (normalizedR < 0.85) {
+      // A ring - moderately bright
       brightness = 0.7 + Math.random() * 0.2
-      baseColor.lerp(new THREE.Color(0xaabbcc), 0.2)
+      baseColor.lerp(new THREE.Color(0xddc8a0), 0.15)
+    } else {
+      // F ring and outer - faint
+      brightness = 0.5 + Math.random() * 0.2
+      baseColor.lerp(new THREE.Color(0xaabbcc), 0.3)
     }
 
     baseColor.multiplyScalar(brightness)
@@ -501,12 +538,14 @@ export function createRingParticles(
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
 
+  // Very small particles for dense appearance
   const material = new THREE.PointsMaterial({
-    size: planetRadius * 0.015,
+    size: planetRadius * 0.005,
     vertexColors: true,
     transparent: true,
     opacity: 0.9,
     sizeAttenuation: true,
+    depthWrite: false,
   })
 
   const mesh = new THREE.Points(geometry, material)
@@ -514,18 +553,19 @@ export function createRingParticles(
   return { mesh, positions, velocities, baseY, phases, planetRadius }
 }
 
-// Update ring particle rotation with wiggle
+// Update ring particle rotation - Keplerian orbital motion
 export function updateRingParticles(
   ringData: RingParticleData,
-  time: number,
+  _time: number,
   deltaTime: number,
   speedFactor: number,
-  wiggleAmplitude: number,
-  wiggleSpeed: number
+  _wiggleAmplitude: number,
+  _wiggleSpeed: number
 ): void {
-  const { positions, velocities, baseY, phases, planetRadius } = ringData
+  const { positions, velocities } = ringData
   const particleCount = velocities.length
 
+  // Update each particle's orbital position
   for (let i = 0; i < particleCount; i++) {
     const idx = i * 3
     const x = positions[idx]!
@@ -534,65 +574,11 @@ export function updateRingParticles(
     const angle = Math.atan2(z, x)
     const r = Math.sqrt(x * x + z * z)
 
-    const newAngle = angle + velocities[i]! * deltaTime * speedFactor * 0.01
+    // Apply Keplerian rotation - inner particles move faster
+    const newAngle = angle + velocities[i]! * deltaTime * speedFactor * 0.02
 
     positions[idx] = Math.cos(newAngle) * r
     positions[idx + 2] = Math.sin(newAngle) * r
-
-    // Wiggle in Y direction
-    const wiggle =
-      Math.sin(time * wiggleSpeed * 2 + phases[i]!) *
-      wiggleAmplitude *
-      planetRadius
-    positions[idx + 1] = baseY[i]! + wiggle
+    // Keep Y position stable (no wiggle for cleaner look)
   }
-}
-
-// Create moon as particle sphere (smaller)
-export function createParticleMoon(
-  body: CelestialBody,
-  radius: number
-): THREE.Points {
-  const particleCount = 2000
-  const positions = new Float32Array(particleCount * 3)
-  const colors = new Float32Array(particleCount * 3)
-
-  const goldenRatio = (1 + Math.sqrt(5)) / 2
-  const angleIncrement = Math.PI * 2 * goldenRatio
-
-  for (let i = 0; i < particleCount; i++) {
-    const t = i / particleCount
-    const inclination = Math.acos(1 - 2 * t)
-    const azimuth = angleIncrement * i
-
-    const r = radius * (0.9 + Math.random() * 0.2)
-
-    positions[i * 3] = r * Math.sin(inclination) * Math.cos(azimuth)
-    positions[i * 3 + 1] = r * Math.cos(inclination)
-    positions[i * 3 + 2] = r * Math.sin(inclination) * Math.sin(azimuth)
-
-    const color = new THREE.Color(body.color)
-    const noise = (Math.random() - 0.5) * 0.2
-    color.r = Math.max(0, Math.min(1, color.r + noise))
-    color.g = Math.max(0, Math.min(1, color.g + noise))
-    color.b = Math.max(0, Math.min(1, color.b + noise))
-
-    colors[i * 3] = color.r
-    colors[i * 3 + 1] = color.g
-    colors[i * 3 + 2] = color.b
-  }
-
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-
-  const material = new THREE.PointsMaterial({
-    size: Math.max(0.15, radius * 0.15),
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.95,
-    sizeAttenuation: true,
-  })
-
-  return new THREE.Points(geometry, material)
 }

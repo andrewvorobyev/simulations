@@ -80,17 +80,20 @@ class SolarApp {
           <div class="control-row">
             <label>
               Target:
+              <button id="btn-prev-target" class="nav-btn">◀</button>
               <select id="select-focus">
                 <option value="">Free Camera</option>
                 <option value="Sun">Sun</option>
                 ${PLANETS.map((p) => `<option value="${p.name}">${p.name}</option>`).join('')}
               </select>
+              <button id="btn-next-target" class="nav-btn">▶</button>
             </label>
             <label class="checkbox-label">
               <input type="checkbox" id="input-follow" /> Follow
             </label>
             <button id="btn-reset">Reset Time</button>
             <span class="time-display" id="time-display">Day: 0</span>
+            <span class="fps-display" id="fps-display">-- FPS</span>
             <a href="/" class="back-link">← 1D</a>
             <a href="/life" class="back-link">Life →</a>
           </div>
@@ -101,7 +104,7 @@ class SolarApp {
           <p>Real orbital mechanics with elliptical orbits and accurate tilts.</p>
           <ul>
             <li>Scroll to zoom (fast), drag to rotate</li>
-            <li>Select target + Follow to track a planet</li>
+            <li>← → arrows to cycle targets with auto-follow</li>
             <li>Rings rotate with Keplerian dynamics</li>
           </ul>
         </div>
@@ -127,6 +130,44 @@ class SolarApp {
     const speedDisplay = document.getElementById('speed-display')!
     const selectFocus = document.getElementById('select-focus') as HTMLSelectElement
     const inputFollow = document.getElementById('input-follow') as HTMLInputElement
+    const btnPrevTarget = document.getElementById('btn-prev-target')!
+    const btnNextTarget = document.getElementById('btn-next-target')!
+
+    // Build targets list: Free Camera, Sun, then all planets
+    const targets = ['', 'Sun', ...PLANETS.map((p) => p.name)]
+
+    const navigateTarget = (direction: number) => {
+      const currentIndex = targets.indexOf(selectFocus.value)
+      const newIndex = (currentIndex + direction + targets.length) % targets.length
+      const newValue = targets[newIndex] ?? ''
+      selectFocus.value = newValue
+
+      if (newValue) {
+        // Auto-enable follow when navigating to a target
+        inputFollow.checked = true
+        this.renderer?.focusOnPlanet(newValue)
+        this.renderer?.setFollowTarget(newValue)
+      } else {
+        // Free camera - disable follow
+        inputFollow.checked = false
+        this.renderer?.setFollowTarget(null)
+      }
+    }
+
+    btnPrevTarget.addEventListener('click', () => navigateTarget(-1))
+    btnNextTarget.addEventListener('click', () => navigateTarget(1))
+
+    // Keyboard navigation with arrow keys
+    document.addEventListener('keydown', (e) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        navigateTarget(-1)
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        navigateTarget(1)
+      }
+    })
 
     const updateSpeed = (value: number) => {
       this.settings.speedFactor = value
@@ -200,6 +241,7 @@ class SolarApp {
 
   private startTimeDisplay(): void {
     const timeDisplay = document.getElementById('time-display')!
+    const fpsDisplay = document.getElementById('fps-display')!
 
     const updateTime = () => {
       if (this.renderer) {
@@ -210,6 +252,9 @@ class SolarApp {
         } else {
           timeDisplay.textContent = `Day: ${days.toFixed(0)}`
         }
+
+        const fps = this.renderer.getFps()
+        fpsDisplay.textContent = `${fps.toFixed(0)} FPS`
       }
       requestAnimationFrame(updateTime)
     }
