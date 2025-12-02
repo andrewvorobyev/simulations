@@ -8,6 +8,8 @@ interface SolarSettings {
   showLabels: boolean
   showAxes: boolean
   trueSpeed: boolean // When false, limit moon orbital speed for visualization
+  followTarget: string // Target name to focus on (empty = free camera)
+  follow: boolean // Whether to follow the target
 }
 
 const STORAGE_KEY = 'solar-settings'
@@ -31,6 +33,8 @@ function getDefaultSettings(): SolarSettings {
     showLabels: true,
     showAxes: false,
     trueSpeed: false, // Default to limited speed for better visualization
+    followTarget: '',
+    follow: false,
   }
 }
 
@@ -60,8 +64,8 @@ class SolarApp {
         <div class="solar-controls">
           <div class="control-row">
             <label>
-              Speed: <input type="range" id="input-speed" min="0.1" max="200" step="0.1" value="${this.settings.speedFactor}" />
-              <input type="number" id="input-speed-value" min="0.1" max="200" step="0.1" value="${this.settings.speedFactor}" style="width: 60px" />
+              Speed: <input type="range" id="input-speed" min="0.1" max="1000" step="0.1" value="${this.settings.speedFactor}" />
+              <input type="number" id="input-speed-value" min="0.1" max="1000" step="0.1" value="${this.settings.speedFactor}" style="width: 60px" />
               <span id="speed-display">days/sec</span>
             </label>
             <label class="checkbox-label">
@@ -82,14 +86,14 @@ class SolarApp {
               Target:
               <button id="btn-prev-target" class="nav-btn">◀</button>
               <select id="select-focus">
-                <option value="">Free Camera</option>
-                <option value="Sun">Sun</option>
-                ${PLANETS.map((p) => `<option value="${p.name}">${p.name}</option>`).join('')}
+                <option value="" ${this.settings.followTarget === '' ? 'selected' : ''}>Free Camera</option>
+                <option value="Sun" ${this.settings.followTarget === 'Sun' ? 'selected' : ''}>Sun</option>
+                ${PLANETS.map((p) => `<option value="${p.name}" ${this.settings.followTarget === p.name ? 'selected' : ''}>${p.name}</option>`).join('')}
               </select>
               <button id="btn-next-target" class="nav-btn">▶</button>
             </label>
             <label class="checkbox-label">
-              <input type="checkbox" id="input-follow" /> Follow
+              <input type="checkbox" id="input-follow" ${this.settings.follow ? 'checked' : ''} /> Follow
             </label>
             <button id="btn-reset">Reset Time</button>
             <span class="time-display" id="time-display">Day: 0</span>
@@ -121,6 +125,13 @@ class SolarApp {
     this.renderer.setShowLabels(this.settings.showLabels)
     this.renderer.setShowAxes(this.settings.showAxes)
     this.renderer.setTrueSpeed(this.settings.trueSpeed)
+    // Apply saved follow target
+    if (this.settings.followTarget) {
+      this.renderer.focusOnPlanet(this.settings.followTarget)
+      if (this.settings.follow) {
+        this.renderer.setFollowTarget(this.settings.followTarget)
+      }
+    }
     this.startTimeDisplay()
   }
 
@@ -147,11 +158,16 @@ class SolarApp {
         inputFollow.checked = true
         this.renderer?.focusOnPlanet(newValue)
         this.renderer?.setFollowTarget(newValue)
+        this.settings.followTarget = newValue
+        this.settings.follow = true
       } else {
         // Free camera - disable follow
         inputFollow.checked = false
         this.renderer?.setFollowTarget(null)
+        this.settings.followTarget = ''
+        this.settings.follow = false
       }
+      saveSettings(this.settings)
     }
 
     btnPrevTarget.addEventListener('click', () => navigateTarget(-1))
@@ -183,7 +199,7 @@ class SolarApp {
     })
 
     speedNumber.addEventListener('input', () => {
-      const value = Math.max(0.1, Math.min(200, parseFloat(speedNumber.value) || 0.1))
+      const value = Math.max(0.1, Math.min(1000, parseFloat(speedNumber.value) || 0.1))
       speedSlider.value = value.toString()
       updateSpeed(value)
     })
@@ -214,6 +230,7 @@ class SolarApp {
 
     selectFocus.addEventListener('change', () => {
       const value = selectFocus.value
+      this.settings.followTarget = value
       if (value) {
         this.renderer?.focusOnPlanet(value)
         if (inputFollow.checked) {
@@ -222,16 +239,20 @@ class SolarApp {
       } else {
         this.renderer?.setFollowTarget(null)
         inputFollow.checked = false
+        this.settings.follow = false
       }
+      saveSettings(this.settings)
     })
 
     inputFollow.addEventListener('change', () => {
       const value = selectFocus.value
+      this.settings.follow = inputFollow.checked
       if (inputFollow.checked && value) {
         this.renderer?.setFollowTarget(value)
       } else {
         this.renderer?.setFollowTarget(null)
       }
+      saveSettings(this.settings)
     })
 
     document.getElementById('btn-reset')!.addEventListener('click', () => {
