@@ -24,6 +24,7 @@ export interface RingParticleData {
   baseY: Float32Array
   phases: Float32Array
   planetRadius: number
+  rotationSpeed: number // base rotation speed from ring period
 }
 
 // Color palettes for different planet types
@@ -448,10 +449,17 @@ export function createRingParticles(
   innerRadius: number,
   outerRadius: number,
   ringColor: number,
-  _particleCount: number // ignored, we use a high fixed count
+  rotationPeriod: number, // hours for inner edge to complete one orbit
+  planetRotationPeriod: number // planet's rotation period (sign indicates direction)
 ): RingParticleData {
   // Use enough particles for dense rings but keep performance good
   const particleCount = 50000
+
+  // Convert rotation period (hours) to rotation speed
+  // Faster rotation = higher speed, so inversely proportional
+  // Ring rotation direction matches planet rotation (negative period = retrograde)
+  const rotationDirection = planetRotationPeriod < 0 ? -1 : 1
+  const rotationSpeed = (rotationPeriod > 0 ? 24 / rotationPeriod : 1) * rotationDirection
 
   const positions = new Float32Array(particleCount * 3)
   const colors = new Float32Array(particleCount * 3)
@@ -550,7 +558,7 @@ export function createRingParticles(
 
   const mesh = new THREE.Points(geometry, material)
 
-  return { mesh, positions, velocities, baseY, phases, planetRadius }
+  return { mesh, positions, velocities, baseY, phases, planetRadius, rotationSpeed }
 }
 
 // Update ring particle rotation - Keplerian orbital motion
@@ -558,11 +566,9 @@ export function updateRingParticles(
   ringData: RingParticleData,
   _time: number,
   deltaTime: number,
-  speedFactor: number,
-  _wiggleAmplitude: number,
-  _wiggleSpeed: number
+  speedFactor: number
 ): void {
-  const { positions, velocities } = ringData
+  const { positions, velocities, rotationSpeed } = ringData
   const particleCount = velocities.length
 
   // Update each particle's orbital position
@@ -574,11 +580,11 @@ export function updateRingParticles(
     const angle = Math.atan2(z, x)
     const r = Math.sqrt(x * x + z * z)
 
-    // Apply Keplerian rotation - inner particles move faster
-    const newAngle = angle + velocities[i]! * deltaTime * speedFactor * 0.02
+    // Apply Keplerian rotation scaled by planet's ring rotation speed
+    // velocities[i] contains Keplerian factor, rotationSpeed scales by planet's ring period
+    const newAngle = angle + velocities[i]! * deltaTime * speedFactor * rotationSpeed
 
     positions[idx] = Math.cos(newAngle) * r
     positions[idx + 2] = Math.sin(newAngle) * r
-    // Keep Y position stable (no wiggle for cleaner look)
   }
 }

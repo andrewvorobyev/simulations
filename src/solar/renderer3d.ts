@@ -38,9 +38,8 @@ interface MoonData {
 }
 
 interface SunData {
-  core: THREE.Points
+  core: THREE.Mesh
   corona: THREE.Points
-  corePositions: Float32Array
   coronaPositions: Float32Array
   coronaVelocities: Float32Array
 }
@@ -125,43 +124,22 @@ export class SolarRenderer {
   }
 
   private createStarfield(): void {
-    const geometry = new THREE.BufferGeometry()
-    const positions: number[] = []
-    const colors: number[] = []
+    // Create a large sphere for the milky way skybox
+    const skyboxRadius = 5000
+    const geometry = new THREE.SphereGeometry(skyboxRadius, 64, 32)
 
-    for (let i = 0; i < 15000; i++) {
-      const r = 3000 + Math.random() * 2000
-      const theta = Math.random() * Math.PI * 2
-      const phi = Math.acos(2 * Math.random() - 1)
+    // Load the milky way texture
+    const textureLoader = new THREE.TextureLoader()
+    const texture = textureLoader.load('/textures/8k_stars_milky_way.jpg')
+    texture.colorSpace = THREE.SRGBColorSpace
 
-      positions.push(
-        r * Math.sin(phi) * Math.cos(theta),
-        r * Math.sin(phi) * Math.sin(theta),
-        r * Math.cos(phi)
-      )
-
-      // Vary star colors slightly
-      const colorT = Math.random()
-      if (colorT < 0.7) {
-        colors.push(1, 1, 1) // White
-      } else if (colorT < 0.85) {
-        colors.push(1, 0.9, 0.8) // Warm
-      } else {
-        colors.push(0.8, 0.9, 1) // Cool
-      }
-    }
-
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
-
-    const material = new THREE.PointsMaterial({
-      size: 1.5,
-      vertexColors: true,
-      sizeAttenuation: false,
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.BackSide, // Render inside of sphere
     })
 
-    const stars = new THREE.Points(geometry, material)
-    this.scene.add(stars)
+    const skybox = new THREE.Mesh(geometry, material)
+    this.scene.add(skybox)
   }
 
   private createSolarSystem(): void {
@@ -221,7 +199,8 @@ export class SolarRenderer {
         innerRadius,
         outerRadius,
         body.ringColor || 0xc9b896,
-        SCALE.RING_PARTICLES
+        body.ringRotationPeriod || 8.0, // hours for inner edge orbit
+        body.rotationPeriod // planet rotation direction (negative = retrograde)
       )
       this.scene.add(ringData.mesh)
     }
@@ -502,9 +481,7 @@ export class SolarRenderer {
           planet.ringData,
           this.time,
           deltaTime,
-          this.speedFactor,
-          planet.body.ringWiggleAmplitude ?? 0.02,
-          planet.body.ringWiggleSpeed ?? 1.0
+          this.speedFactor
         )
         const posAttr = planet.ringData.mesh.geometry.attributes.position
         if (posAttr) posAttr.needsUpdate = true
@@ -522,10 +499,12 @@ export class SolarRenderer {
 
       for (const moon of planet.moons) {
         const scaledRadius = planet.moonOrbitScale(moon.body.semiMajorAxis)
-        const period = this.trueSpeed
+        // Preserve orbital period sign for retrograde moons (negative period = clockwise orbit)
+        const periodMagnitude = this.trueSpeed
           ? Math.abs(moon.body.orbitalPeriod)
           : Math.abs(moon.body.orbitalPeriod) * planet.moonPeriodScale
-        const angle = ((2 * Math.PI * this.time) / period) % (2 * Math.PI)
+        const direction = moon.body.orbitalPeriod < 0 ? -1 : 1
+        const angle = (direction * (2 * Math.PI * this.time) / periodMagnitude) % (2 * Math.PI)
 
         const localX = scaledRadius * Math.cos(angle)
         const localY = 0
