@@ -7,7 +7,6 @@ interface SolarSettings {
   showOrbits: boolean
   showLabels: boolean
   showAxes: boolean
-  trueSpeed: boolean // When false, limit moon orbital speed for visualization
   followTarget: string // Target name to focus on (empty = free camera)
   follow: boolean // Whether to follow the target
 }
@@ -32,7 +31,6 @@ function getDefaultSettings(): SolarSettings {
     showOrbits: true,
     showLabels: true,
     showAxes: false,
-    trueSpeed: false, // Default to limited speed for better visualization
     followTarget: '',
     follow: false,
   }
@@ -77,9 +75,6 @@ class SolarApp {
             <label class="checkbox-label">
               <input type="checkbox" id="input-axes" ${this.settings.showAxes ? 'checked' : ''} /> Axes
             </label>
-            <label class="checkbox-label">
-              <input type="checkbox" id="input-true-speed" ${this.settings.trueSpeed ? 'checked' : ''} /> Fast Moons
-            </label>
           </div>
           <div class="control-row">
             <label>
@@ -103,15 +98,6 @@ class SolarApp {
           </div>
         </div>
         <div class="solar-canvas" id="canvas-container"></div>
-        <div class="solar-info">
-          <h3>Solar System</h3>
-          <p>Real orbital mechanics with elliptical orbits and accurate tilts.</p>
-          <ul>
-            <li>Scroll to zoom (fast), drag to rotate</li>
-            <li>← → arrows to cycle targets with auto-follow</li>
-            <li>Rings rotate with Keplerian dynamics</li>
-          </ul>
-        </div>
       </div>
     `
   }
@@ -124,7 +110,6 @@ class SolarApp {
     this.renderer.setShowOrbits(this.settings.showOrbits)
     this.renderer.setShowLabels(this.settings.showLabels)
     this.renderer.setShowAxes(this.settings.showAxes)
-    this.renderer.setTrueSpeed(this.settings.trueSpeed)
     // Apply saved follow target
     if (this.settings.followTarget) {
       this.renderer.focusOnPlanet(this.settings.followTarget)
@@ -219,12 +204,6 @@ class SolarApp {
     document.getElementById('input-axes')!.addEventListener('change', (e) => {
       this.settings.showAxes = (e.target as HTMLInputElement).checked
       this.renderer?.setShowAxes(this.settings.showAxes)
-      saveSettings(this.settings)
-    })
-
-    document.getElementById('input-true-speed')!.addEventListener('change', (e) => {
-      this.settings.trueSpeed = (e.target as HTMLInputElement).checked
-      this.renderer?.setTrueSpeed(this.settings.trueSpeed)
       saveSettings(this.settings)
     })
 

@@ -134,41 +134,6 @@
   display: block;
 }
 
-.solar-info {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  background: rgba(0, 0, 17, 0.85);
-  padding: 12px 16px;
-  border-radius: 6px;
-  font-size: 12px;
-  max-width: 280px;
-  pointer-events: none;
-  border: 1px solid #222;
-}
-
-.solar-info h3 {
-  margin: 0 0 6px 0;
-  color: #ffa500;
-  font-size: 14px;
-}
-
-.solar-info p {
-  margin: 0 0 8px 0;
-  color: #888;
-  line-height: 1.4;
-}
-
-.solar-info ul {
-  margin: 0;
-  padding-left: 16px;
-  color: #666;
-}
-
-.solar-info li {
-  margin-bottom: 2px;
-}
-
 .planet-label {
   z-index: 100;
 }
@@ -181,11 +146,5 @@
 
   .control-row {
     gap: 10px;
-  }
-
-  .solar-info {
-    font-size: 11px;
-    max-width: 200px;
-    padding: 8px 12px;
   }
 }
