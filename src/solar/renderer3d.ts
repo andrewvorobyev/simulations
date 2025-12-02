@@ -102,7 +102,8 @@ export class SolarRenderer {
       0.1,
       10000
     )
-    this.camera.position.set(200, 100, 200)
+    // Position camera for top/side view showing gas giants (Jupiter ~520, Saturn ~950 units)
+    this.camera.position.set(600, 1200, 600)
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -115,7 +116,7 @@ export class SolarRenderer {
     this.controls.enableDamping = true
     this.controls.dampingFactor = 0.05
     this.controls.minDistance = 1
-    this.controls.maxDistance = 5000
+    this.controls.maxDistance = 8000
     this.controls.zoomSpeed = 3.0
     this.controls.rotateSpeed = 1.0
     this.controls.panSpeed = 2.0
